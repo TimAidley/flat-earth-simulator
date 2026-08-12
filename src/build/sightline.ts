@@ -228,12 +228,14 @@ function evaluateModel(
 
   // The observer's own horizon is the floor: with nothing in the way, that is
   // still what cuts the target's base.
-  const horizonElevation = apparentElevation(
-    eye,
-    distance,
-    target.baseElevation + hiddenHeight(observer.eyeHeight, distance, invR),
-    invR,
-  );
+  //
+  // These formulas take height above the *datum* — the water surface the
+  // curvature is measured against — not height above local ground. Passing
+  // eye-above-ground here would put an observer on a 10 m mound at a 5.4 km
+  // horizon instead of 12.8 km, and that error falls exactly on the
+  // walk-the-transition experiment this tool exists to plan.
+  const curvatureHidden = hiddenHeight(eye, distance, invR);
+  const horizonElevation = apparentElevation(eye, distance, curvatureHidden, invR);
   if (horizonElevation > maxElevation) {
     maxElevation = horizonElevation;
     blocker = undefined;
@@ -249,15 +251,26 @@ function evaluateModel(
     topOfTarget,
   );
 
+  // "Blocked" has to mean an obstruction actually hides part of the target,
+  // not merely that the tallest thing on the profile happened to be terrain.
+  // The target's own shoreline sits one step short of the target and would
+  // otherwise flag every over-water sightline as obstructed.
+  const curvatureOnlyLowest = Math.max(
+    target.baseElevation,
+    solveLowestVisible(eye, distance, invR, horizonElevation, target.baseElevation, topOfTarget),
+  );
+  const obstructed =
+    blocker !== undefined && lowestVisible > curvatureOnlyLowest + 0.01;
+
   return {
     invR,
     k,
-    horizonDistance: horizonDistance(observer.eyeHeight, invR),
-    hiddenByCurvature: hiddenHeight(observer.eyeHeight, distance, invR),
+    horizonDistance: horizonDistance(eye, invR),
+    hiddenByCurvature: curvatureHidden,
     criticalObserverHeight: criticalObserverHeight(distance, invR),
     lowestVisible: Number.isFinite(lowestVisible) ? lowestVisible : topOfTarget,
-    blockedByObstruction: blocker !== undefined,
-    ...(blocker ? { blocker } : {}),
+    blockedByObstruction: obstructed,
+    ...(obstructed && blocker ? { blocker } : {}),
     fullyHidden: !Number.isFinite(lowestVisible),
   };
 }
