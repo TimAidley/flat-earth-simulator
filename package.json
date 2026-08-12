@@ -20,5 +20,10 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "@duckdb/node-api": "^1.5.5-r.4",
+    "@types/pngjs": "^6.0.5",
+    "pngjs": "^7.0.0"
   }
 }
