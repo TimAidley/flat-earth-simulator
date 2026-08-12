@@ -112,6 +112,45 @@ export async function writeBundle(
   return manifest;
 }
 
+export interface LoadedBundle {
+  manifest: BundleManifest;
+  terrain: TerrainGrid;
+  buildings: Building[];
+}
+
+/** Read a bundle written by {@link writeBundle}. */
+export async function loadBundle(dir: string): Promise<LoadedBundle> {
+  const { readFile } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+
+  const manifest = JSON.parse(
+    await readFile(join(dir, 'manifest.json'), 'utf8'),
+  ) as BundleManifest;
+
+  if (manifest.formatVersion !== BUNDLE_FORMAT_VERSION) {
+    throw new Error(
+      `Bundle format version ${manifest.formatVersion} does not match ` +
+        `${BUNDLE_FORMAT_VERSION}; rebuild the scene.`,
+    );
+  }
+
+  const raw = await readFile(join(dir, manifest.terrain.file));
+  const terrain: TerrainGrid = {
+    bbox: manifest.terrain.bbox,
+    width: manifest.terrain.width,
+    height: manifest.terrain.height,
+    datum: manifest.terrain.datum as TerrainGrid['datum'],
+    noDataValue: manifest.terrain.noDataValue,
+    data: new Float32Array(raw.buffer, raw.byteOffset, raw.byteLength / 4),
+  };
+
+  const buildings = JSON.parse(
+    await readFile(join(dir, manifest.buildings.file), 'utf8'),
+  ) as Building[];
+
+  return { manifest, terrain, buildings };
+}
+
 /**
  * Sample a terrain grid at a latitude/longitude, bilinearly.
  * Returns `null` outside the grid or where the source had no data.

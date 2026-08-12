@@ -60,6 +60,43 @@ export function resolveHeight(
   return { height: DEFAULT_BUILDING_HEIGHT, heightSource: 'default' };
 }
 
+/** Describe an unknown value well enough to debug a type mismatch from a log. */
+function describe(value: unknown): string {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  const t = typeof value;
+  if (t !== 'object') return t;
+  const ctor = (value as object).constructor?.name ?? '(no constructor)';
+  const keys = Object.keys(value as object).slice(0, 6).join(',');
+  return `${ctor}{${keys}}`;
+}
+
+/**
+ * Coerce whatever the database driver hands back for a BLOB column into bytes.
+ *
+ * Drivers disagree about this — a BLOB may arrive as a Uint8Array, a Node
+ * Buffer, a raw ArrayBuffer, or a wrapper object with the bytes on a property.
+ * Getting it wrong throws deep inside the WKB reader, which previously meant
+ * every building was silently dropped while the height counters still reported
+ * thousands of successes. Handle the shapes explicitly, and when none matches,
+ * say exactly what arrived instead.
+ */
+export function toBytes(value: unknown): Uint8Array {
+  if (value instanceof Uint8Array) return value; // also covers Buffer
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+  if (value && typeof value === 'object') {
+    for (const prop of ['bytes', 'data', 'value'] as const) {
+      const inner = (value as Record<string, unknown>)[prop];
+      if (inner instanceof Uint8Array) return inner;
+      if (inner instanceof ArrayBuffer) return new Uint8Array(inner);
+    }
+  }
+  throw new Error(`Cannot interpret BLOB value as bytes: got ${describe(value)}`);
+}
+
 /**
  * Decode the exterior ring of a WKB polygon or multipolygon into [lon, lat]
  * pairs. Interior rings are dropped: a hole cannot occlude anything, so it has
@@ -186,8 +223,27 @@ export class OvertureBuildingProvider implements BuildingProvider {
     let measured = 0;
     let fromFloors = 0;
     let defaulted = 0;
+    let geometryFailures = 0;
+    let firstGeometryError: string | undefined;
 
     for (const row of rows) {
+      // Decode geometry first. Counting a building before knowing we can place
+      // it is how the counters once reported thousands of heights for an empty
+      // output.
+      let footprint: [number, number][];
+      try {
+        footprint = wkbExteriorRing(toBytes(row['wkb']));
+      } catch (err) {
+        geometryFailures++;
+        firstGeometryError ??= err instanceof Error ? err.message : String(err);
+        continue;
+      }
+      if (footprint.length < 3) {
+        geometryFailures++;
+        firstGeometryError ??= `ring had only ${footprint.length} points`;
+        continue;
+      }
+
       const { height, heightSource } = resolveHeight(
         row['height'] as number | null,
         row['num_floors'] as number | null,
@@ -195,14 +251,6 @@ export class OvertureBuildingProvider implements BuildingProvider {
       if (heightSource === 'measured') measured++;
       else if (heightSource === 'floors') fromFloors++;
       else defaulted++;
-
-      let footprint: [number, number][];
-      try {
-        footprint = wkbExteriorRing(row['wkb'] as Uint8Array);
-      } catch {
-        continue; // unsupported geometry; skip rather than poison the scene
-      }
-      if (footprint.length < 3) continue;
 
       const b: Building = {
         id: String(row['id']),
@@ -217,6 +265,16 @@ export class OvertureBuildingProvider implements BuildingProvider {
       buildings.push(b);
     }
 
+    // Rows arriving but nothing surviving means a decoding bug, not sparse
+    // data. Fail rather than hand back an empty layer that looks deliberate.
+    if (rows.length > 0 && buildings.length === 0) {
+      throw new ProviderUnavailableError(
+        this.id,
+        `all ${rows.length} rows failed geometry decoding — first error: ` +
+          `${firstGeometryError ?? 'unknown'}`,
+      );
+    }
+
     return {
       buildings,
       provenance: {
@@ -224,11 +282,18 @@ export class OvertureBuildingProvider implements BuildingProvider {
         url: 'https://docs.overturemaps.org/guides/buildings/',
         licence: 'ODbL / CDLA-Permissive, per source; attribution required',
         retrievedAt: new Date().toISOString(),
-        verified: defaulted === 0 && fromFloors === 0,
+        verified: defaulted === 0 && fromFloors === 0 && geometryFailures === 0,
         notes: [
-          `${buildings.length} buildings at or above ${minHeightMetres} m.`,
+          `${buildings.length} buildings at or above ${minHeightMetres} m ` +
+            `(from ${rows.length} rows).`,
           `Heights: ${measured} measured, ${fromFloors} derived from floor count, ` +
             `${defaulted} defaulted to ${DEFAULT_BUILDING_HEIGHT} m.`,
+          ...(geometryFailures > 0
+            ? [
+                `${geometryFailures} rows dropped on geometry decoding — first error: ` +
+                  `${firstGeometryError}`,
+              ]
+            : []),
           ...(defaulted > 0
             ? [
                 'Buildings with defaulted heights are effectively unknown and should ' +

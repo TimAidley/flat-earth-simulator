@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   resolveHeight,
   wkbExteriorRing,
+  toBytes,
   METRES_PER_FLOOR,
   DEFAULT_BUILDING_HEIGHT,
 } from './buildings-overture.ts';
@@ -29,6 +30,44 @@ describe('resolveHeight', () => {
     expect(resolveHeight(0, null).heightSource).toBe('default');
     expect(resolveHeight(-5, null).heightSource).toBe('default');
     expect(resolveHeight(NaN, 4).heightSource).toBe('floors');
+  });
+});
+
+/**
+ * Database drivers disagree about how a BLOB comes back. Getting this wrong
+ * once caused every building to be dropped while the height counters still
+ * reported thousands of successes, so each shape is pinned.
+ */
+describe('toBytes', () => {
+  const bytes = new Uint8Array([1, 2, 3, 4]);
+
+  it('passes a Uint8Array through', () => {
+    expect(toBytes(bytes)).toBe(bytes);
+  });
+
+  it('accepts a Node Buffer', () => {
+    expect(Array.from(toBytes(Buffer.from([1, 2, 3, 4])))).toEqual([1, 2, 3, 4]);
+  });
+
+  it('accepts a raw ArrayBuffer', () => {
+    expect(Array.from(toBytes(bytes.buffer.slice(0)))).toEqual([1, 2, 3, 4]);
+  });
+
+  it('accepts a typed-array view with a non-zero offset', () => {
+    const backing = new Uint8Array([9, 9, 1, 2, 3, 4]);
+    const view = new Uint8Array(backing.buffer, 2, 4);
+    expect(Array.from(toBytes(view))).toEqual([1, 2, 3, 4]);
+  });
+
+  it('unwraps a driver wrapper object', () => {
+    expect(Array.from(toBytes({ bytes }))).toEqual([1, 2, 3, 4]);
+    expect(Array.from(toBytes({ data: bytes }))).toEqual([1, 2, 3, 4]);
+  });
+
+  it('names what it actually got when it cannot cope', () => {
+    expect(() => toBytes({ nope: 1 })).toThrow(/got Object\{nope\}/);
+    expect(() => toBytes(null)).toThrow(/got null/);
+    expect(() => toBytes(42)).toThrow(/got number/);
   });
 });
 
