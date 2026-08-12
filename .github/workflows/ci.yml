@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Tests and typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  scene:
+    name: Build Bay Area scene
+    # The point of this job is to exercise the providers that cannot reach
+    # their upstreams from the development sandbox: Overture buildings needs
+    # extensions.duckdb.org plus the Overture S3 bucket, and the tide layer
+    # needs NOAA CO-OPS. A runner has ordinary egress, so this is where we
+    # find out whether either actually works.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Terrarium tiles are static and immutable per zoom/x/y, so caching them
+      # keeps repeat runs off the wire entirely.
+      - name: Restore terrain tile cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/tiles
+          key: terrain-tiles-${{ hashFiles('scenes/*.json') }}
+          restore-keys: terrain-tiles-
+
+      - name: Probe upstream reachability
+        run: |
+          for url in \
+            "https://elevation-tiles-prod.s3.amazonaws.com/terrarium/4/8/5.png" \
+            "https://overturemaps-us-west-2.s3.amazonaws.com/?list-type=2&max-keys=1" \
+            "https://extensions.duckdb.org/" \
+            "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9414290.json"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 "$url" || echo "ERR")
+            printf '%-6s %s\n' "$code" "${url:0:80}"
+          done
+
+      - name: Build scene (strict)
+        timeout-minutes: 25
+        run: npm run build:scene -- scenes/bay-area.json --strict
+
+      - name: Summarise bundle
+        if: always()
+        run: |
+          if [ ! -f bundles/bay-area/manifest.json ]; then
+            echo "No manifest produced."; exit 0
+          fi
+          echo "### Bundle" >> "$GITHUB_STEP_SUMMARY"
+          node -e '
+            const m = require("./bundles/bay-area/manifest.json");
+            const line = (s) => { console.log(s); require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, s + "\n"); };
+            line("```");
+            line(`terrain    ${m.terrain.width} x ${m.terrain.height} @ ${m.terrain.datum}`);
+            line(`buildings  ${m.buildings.count} at or above ${m.buildings.minHeightMetres} m`);
+            for (const n of m.buildings.provenance.notes ?? []) line(`           ${n}`);
+            if (m.tide) {
+              line(`tide       ${m.tide.stationCount} stations`);
+              for (const n of m.tide.provenance.notes ?? []) line(`           ${n}`);
+            } else line("tide       (absent)");
+            line("");
+            line(`unverified assumptions: ${m.unverified.length}`);
+            for (const u of m.unverified) line(`  - ${u}`);
+            line("```");
+          '
+
+      - name: Upload bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bay-area-bundle
+          path: bundles/bay-area/
+          if-no-files-found: warn
