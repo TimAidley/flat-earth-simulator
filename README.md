@@ -10,25 +10,57 @@ honest answer is "barely", and a tool worth building has to be able to say so.
 
 ## Status
 
-Phases 0 and 1 of the plan. No renderer yet.
+Phases 0-2 of the plan. No renderer yet.
 
 | | |
 |---|---|
-| `src/core` | geodesy, refraction, sightline geometry. Pure TS, 79 tests. |
-| `src/build` | scene bundle pipeline — providers, config, manifest. 34 tests. |
+| `src/core` | geodesy, refraction, sightline geometry. Pure TS. |
+| `src/build` | scene bundles, sightline analysis, coordinate resolution. |
 | `src/app` | not started |
+
+144 tests.
 
 ## Quick start
 
 ```bash
 npm install
 npm test
-npm run build:scene -- scenes/bay-area.json
+npm run build:scene -- scenes/bay-area.json    # writes bundles/bay-area/
+npm run sightline    -- bundles/bay-area       # rank every observer/target pair
+npm run resolve:scene -- bundles/bay-area --scene scenes/bay-area.json
 ```
 
-The build writes `bundles/bay-area/` — a terrain grid, buildings, and a
+`build:scene` writes a terrain grid, buildings, tide constituents and a
 manifest recording where every layer came from and what in it is still an
-assumption.
+assumption. `sightline` is the one worth running before a ride.
+
+### Where to stand
+
+```
+observer            target                    dist     diff  arcmin    px  note
+albany-beach        ggb-south-tower       16.38 km    7.9 m    1.65    15
+albany-beach        ggb-north-tower       15.91 km    7.2 m    1.56    15
+point-isabel        ggb-south-tower       16.49 km    3.5 m    0.73     7
+richmond-annex      salesforce-tower      14.20 km    2.3 m    0.55     —  blocked by terrain at 9.38 km
+```
+
+The Golden Gate towers dominate — longest baseline, cleanest water path.
+Downtown never places. `richmond-annex` is blocked toward San Francisco by
+terrain at around 9.4 km, almost certainly Brooks Island; obstructed pairs
+score zero rather than merely low, because a blocked sightline is not a weak
+curvature test, it is not a curvature test at all.
+
+## CI does the work you cannot do locally
+
+Two upstreams are unreachable from some development environments —
+`extensions.duckdb.org` (needed by DuckDB at runtime) and
+`api.tidesandcurrents.noaa.gov`. A GitHub runner has ordinary egress, so CI
+runs the strict build, resolves coordinates against Overture, and uploads both
+the bundle and the resolved scene as artifacts.
+
+That paid for itself immediately. The first run reported `0 buildings` beside
+`Heights: 4258 measured` — the query worked and every row was then dropped by a
+geometry decode whose failure a bare `catch { continue }` had swallowed.
 
 ## How the flat/round toggle works
 
@@ -133,8 +165,16 @@ comparable to the whole curvature effect at these distances.
 - **Terrarium mixes SRTM, NED and GMTED**, whose native vertical datums differ.
   Tagged EGM2008 as the closest single label. Replace with USGS 3DEP before
   treating a render as a measurement.
-- **Landmark coordinates in `scenes/bay-area.json` are unverified** and marked
-  as such. They are good enough to plan a bike ride, not to measure with.
+- **Landmark coordinates in `scenes/bay-area.json` started as guesses.**
+  `resolve:scene` now fixes what it can, and records which fixes count as
+  verification: an Overture name match is independent confirmation, a DEM
+  summit snap is only self-consistency. Targets declare a `kind`
+  (`building` / `summit` / `fixed`) and anything undeclared is left alone —
+  with summit-snapping as a fallback the resolver cheerfully walked Salesforce
+  Tower 1.5 km onto a hill and called it a resolution.
+- **The Golden Gate tower coordinates are still hand-typed.** Bridge towers
+  are neither Overture buildings nor summits, so nothing can resolve them
+  automatically — and they carry the best sightlines on the route.
 
 The build reports all of this rather than burying it:
 
