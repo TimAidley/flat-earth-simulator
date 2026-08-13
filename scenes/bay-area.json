@@ -8,6 +8,7 @@
     "lonMax": -122.25
   },
   "verticalDatum": "egm2008",
+  "magneticDeclinationDeg": 13.2,
   "datumSeparations": {
     "separations": {
       "egm2008": 32.3

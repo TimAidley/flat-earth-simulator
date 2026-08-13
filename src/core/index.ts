@@ -11,4 +11,6 @@ export * from './curve.ts';
 export * from './refraction.ts';
 export * from './sightline.ts';
 export * from './optics.ts';
+export * from './framing.ts';
+export * from './attitude.ts';
 export * from './datum.ts';
