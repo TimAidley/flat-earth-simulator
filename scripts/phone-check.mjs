@@ -24,6 +24,23 @@ import { mkdir } from 'node:fs/promises';
 const URL_BASE = process.env.APP_URL ?? 'http://localhost:4173/';
 const OUT = process.env.OUT_DIR ?? 'shots';
 await mkdir(OUT, { recursive: true });
+
+/**
+ * Capture evidence, and never fail the run over it.
+ *
+ * A screenshot needs a frame out of the compositor, and on a GPU-less runner
+ * drawing a WebGL scene beside a playing video that can take a while — the
+ * 30-second default has timed out on a commit that passed minutes earlier.
+ * These images are evidence, not assertions; the checks above them are what
+ * decides whether the build is good, so a slow capture is a warning.
+ */
+const snap = async (name) => {
+  try {
+    await page.screenshot({ path: `${OUT}/${name}.png`, timeout: 120_000 });
+  } catch (err) {
+    console.log(`  note   ${name}.png not captured: ${err.message.split('\n')[0]}`);
+  }
+};
 const problems = [];
 const check = (name, ok, detail = '') => {
   console.log(`${ok ? '  ok  ' : ' FAIL '} ${name}${detail ? `  ${detail}` : ''}`);
@@ -193,7 +210,7 @@ check(
   `${wide.cameraFov.toFixed(2)}° vs ${wide.renderFov.toFixed(2)}°`,
 );
 
-await page.screenshot({ path: `${OUT}/phone-split.png` });
+await snap('phone-split');
 
 for (const focal of [300, 600, 1200]) {
   await setFocal(focal);
@@ -266,7 +283,7 @@ check(
   'calibration hides the panel covering the image',
   await page.evaluate(() => document.body.classList.contains('tucked')),
 );
-await page.screenshot({ path: `${OUT}/phone-calibrating.png` });
+await snap('phone-calibrating');
 
 const tapCamera = (fx, fy) =>
   page.evaluate(
