@@ -11,6 +11,7 @@
 import type { VerticalDatum } from '../core/datum.ts';
 import type { DatumSeparations } from '../core/datum.ts';
 import type { BBox } from './providers/types.ts';
+import type { Structure } from './structures.ts';
 
 export interface NamedPoint {
   id: string;
@@ -106,6 +107,11 @@ export interface SceneConfig {
     provider: 'noaa-harcon';
     stationIds: string[];
   };
+  /**
+   * Structures no data source provides, described from published dimensions
+   * and expanded into buildings at build time.
+   */
+  structures?: Structure[];
   observers: Observer[];
   targets: Target[];
 }

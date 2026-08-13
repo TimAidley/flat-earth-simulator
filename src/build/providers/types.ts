@@ -96,6 +96,12 @@ export interface Building {
   height: number;
   heightSource: HeightSource;
   numFloors?: number;
+  /**
+   * Base above the scene datum, metres. When omitted the base sits on the
+   * terrain beneath the footprint, which is right for a building and wrong for
+   * anything elevated — a bridge deck 67 m above the water, for instance.
+   */
+  baseElevation?: number;
   /** Exterior ring as [lon, lat] pairs. Holes are dropped; they cannot occlude. */
   footprint: [number, number][];
 }

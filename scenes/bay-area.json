@@ -1,6 +1,6 @@
 {
   "id": "bay-area",
-  "name": "San Francisco Bay — Richmond Annex to Emeryville",
+  "name": "San Francisco Bay \u2014 Richmond Annex to Emeryville",
   "bbox": {
     "latMin": 37.75,
     "latMax": 37.95,
@@ -145,23 +145,24 @@
     {
       "id": "ggb-south-tower",
       "name": "Golden Gate Bridge, south tower",
-      "lat": 37.8149,
-      "lon": -122.4779,
-      "structureHeight": 227,
+      "lat": 37.814153,
+      "lon": -122.47753,
+      "structureHeight": 227.4,
       "baseElevation": 0,
       "verified": false,
-      "notes": "Longest clean over-water sightline available from the route. Kind is fixed: bridge towers are not in the Overture buildings layer and are not summits, so this coordinate still needs checking by hand.",
+      "notes": "Longest clean over-water sightline from the route. Position derived from the Overture bridge centreline; see the golden-gate-bridge structure.",
       "kind": "fixed"
     },
     {
       "id": "ggb-north-tower",
       "name": "Golden Gate Bridge, north tower",
-      "lat": 37.825,
-      "lon": -122.4787,
-      "structureHeight": 227,
+      "lat": 37.825577,
+      "lon": -122.479535,
+      "structureHeight": 227.4,
       "baseElevation": 0,
       "verified": false,
-      "kind": "fixed"
+      "kind": "fixed",
+      "notes": "Position derived from the Overture bridge centreline."
     },
     {
       "id": "alcatraz",
@@ -206,6 +207,32 @@
       "verified": false,
       "kind": "summit",
       "notes": "Snapped to the highest DEM cell within 1500 m. Derived from the scene's own terrain, so self-consistent but not independently verified."
+    }
+  ],
+  "structures": [
+    {
+      "kind": "suspension-bridge",
+      "id": "golden-gate-bridge",
+      "name": "Golden Gate Bridge",
+      "towers": [
+        {
+          "lat": 37.814153,
+          "lon": -122.47753
+        },
+        {
+          "lat": 37.825577,
+          "lon": -122.479535
+        }
+      ],
+      "towerHeight": 227.4,
+      "towerAcross": 27.4,
+      "towerAlong": 15.0,
+      "deckClearance": 67.1,
+      "deckDepth": 7.6,
+      "deckWidth": 27.4,
+      "sideSpan": 343.0,
+      "verified": false,
+      "source": "Derived: Overture base/infrastructure 'Golden Gate Bridge' centreline (9acda0c5-67fc-3956-afc8-9a8e333ae3db, endpoints 37.8081298,-122.4764734 to 37.8323305,-122.4807209), with the south tower placed 335 m offshore of the DEM's south shoreline crossing and the north tower one published 1280.2 m main span beyond it. Corroboration: that lands the north tower 5 m from the DEM's north shoreline crossing, which is where it is known to stand. Dimensions are the published figures: 227.4 m tower height, 67.1 m deck clearance, 27.4 m deck width."
     }
   ]
 }
