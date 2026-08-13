@@ -441,6 +441,60 @@ async function main(): Promise<void> {
     }
   };
 
+  // --- full screen ---------------------------------------------------------
+  //
+  // Worth its own control: on a phone the browser's own chrome takes a
+  // meaningful slice of a view whose whole point is angular fidelity, and the
+  // address bar moves as you scroll.
+  //
+  // iPhone Safari has no Fullscreen API for ordinary elements — only video
+  // gets webkitEnterFullscreen — so the button is hidden there rather than
+  // left to do nothing, and the route that does work is named instead.
+  const fullBtn = el<HTMLButtonElement>('full');
+
+  interface FullscreenCapable extends HTMLElement {
+    webkitRequestFullscreen?: () => Promise<void> | void;
+  }
+  interface FullscreenDoc extends Document {
+    webkitFullscreenElement?: Element | null;
+    webkitExitFullscreen?: () => Promise<void> | void;
+  }
+  const doc = document as FullscreenDoc;
+  const root = document.documentElement as FullscreenCapable;
+
+  const canFullscreen = Boolean(root.requestFullscreen ?? root.webkitRequestFullscreen);
+  const isFullscreen = (): boolean =>
+    Boolean(doc.fullscreenElement ?? doc.webkitFullscreenElement);
+
+  if (!canFullscreen) {
+    fullBtn.hidden = true;
+  } else {
+    fullBtn.onclick = async () => {
+      try {
+        if (isFullscreen()) {
+          await (doc.exitFullscreen?.() ?? doc.webkitExitFullscreen?.());
+        } else {
+          await (root.requestFullscreen?.() ?? root.webkitRequestFullscreen?.());
+        }
+      } catch {
+        // Refusals happen (permissions policy in an embedded frame, for one),
+        // and a dead button with no explanation is worse than a note.
+        note.className = 'show';
+        note.textContent =
+          'Full screen was refused here. If this page is embedded in another site, ' +
+          'open it directly instead.';
+        tucked = false;
+        applyTuck();
+      }
+    };
+    for (const ev of ['fullscreenchange', 'webkitfullscreenchange']) {
+      document.addEventListener(ev, () => {
+        fullBtn.setAttribute('aria-pressed', String(isFullscreen()));
+        resize();
+      });
+    }
+  }
+
   function resize(): void {
     renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     update();
@@ -452,6 +506,13 @@ async function main(): Promise<void> {
     // owns <head> and there is no charset declaration we control.
     `${manifest.unverified.length} unverified assumptions in this bundle. ` +
     'This is a picture, not a measurement.';
+
+  if (!canFullscreen && /iPhone|iPod/.test(navigator.userAgent)) {
+    note.className = 'show';
+    note.textContent =
+      'iPhone Safari has no full-screen control for a page. Use Share then ' +
+      '"Add to Home Screen" and launch it from there — it opens without browser chrome.';
+  }
 
   applyMode();
   aimAtTarget();

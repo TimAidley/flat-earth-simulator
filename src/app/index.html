@@ -1,4 +1,9 @@
 <link rel="icon" href="data:," />
+<!-- Added to the home screen on iOS this launches chromeless, which is the
+     only route to a full-screen view there: iPhone Safari has no Fullscreen
+     API for ordinary elements. -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
 <title>Bay Trail Horizon</title>
 <style>
   :root {
@@ -136,6 +141,7 @@
   <button id="tuck" aria-pressed="false" title="Hide the panels">&#9776;</button>
   <button id="camera" aria-pressed="false">Camera</button>
   <button id="mode">Split</button>
+  <button id="full" aria-pressed="false" title="Full screen">&#9974;</button>
   <span class="grow" id="bar-status"></span>
 </div>
 
