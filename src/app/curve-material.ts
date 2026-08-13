@@ -1,8 +1,8 @@
 /**
  * The shader side of the flat/round toggle.
  *
- * Geometry arrives in a scene-local frame — x east, y height above datum,
- * z north, all relative to the scene origin — with no curvature baked in.
+ * Geometry arrives in three.js world axes — x east, y height above datum,
+ * z south, all relative to the scene origin — with no curvature baked in.
  * The vertex shader subtracts the observer's position and applies curvature
  * from a single uniform, so moving the observer or sweeping the radius is a
  * uniform update rather than a geometry rebuild.
@@ -18,8 +18,12 @@ import { CURVE_GLSL } from '../core/curve.ts';
 export interface CurveUniforms {
   /** Inverse effective radius, 1/m. Zero is a flat Earth. */
   uInvR: { value: number };
-  /** Observer position in the scene frame, metres east/north of the origin. */
-  uObserverEN: { value: THREE.Vector2 };
+  /**
+   * Observer position in three.js world axes (x east, z south), metres from
+   * the scene origin. curve() is rotationally symmetric about the observer's
+   * vertical, so it works in this basis unchanged.
+   */
+  uObserverXZ: { value: THREE.Vector2 };
   /** e-folding distance for atmospheric extinction, metres. */
   uVisibility: { value: number };
   uSkyColor: { value: THREE.Color };
@@ -29,7 +33,7 @@ export interface CurveUniforms {
 export function makeCurveUniforms(): CurveUniforms {
   return {
     uInvR: { value: 0 },
-    uObserverEN: { value: new THREE.Vector2() },
+    uObserverXZ: { value: new THREE.Vector2() },
     uVisibility: { value: 60_000 },
     uSkyColor: { value: new THREE.Color(0xa8c4dc) },
     uSunDir: { value: new THREE.Vector3(0.4, 0.55, -0.7).normalize() },
@@ -41,16 +45,17 @@ const COMMON_VERTEX_HEAD = /* glsl */ `
 #include <logdepthbuf_pars_vertex>
 ${CURVE_GLSL}
 
-uniform vec2  uObserverEN;
+uniform vec2  uObserverXZ;
 varying float vDistance;
 varying float vHeight;
 varying vec3  vNormalW;
 
 vec3 placeVertex(vec3 local, out float dist) {
-  // local: x east, y height above datum, z north — relative to the scene origin.
-  vec2 en = vec2(local.x, local.z) - uObserverEN;
-  dist = length(en);
-  return curve(en, local.y);
+  // local: three.js world axes relative to the scene origin — x east, y height
+  // above datum, z south.
+  vec2 xz = vec2(local.x, local.z) - uObserverXZ;
+  dist = length(xz);
+  return curve(xz, local.y);
 }
 `;
 
@@ -120,6 +125,9 @@ export function createTerrainMaterial(uniforms: CurveUniforms): THREE.ShaderMate
 /** Buildings: plain grey, silhouette is what matters at these ranges. */
 export function createBuildingMaterial(uniforms: CurveUniforms): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
+    // Overture footprint rings may wind either way, so culling on winding
+    // would drop walls unpredictably depending on the source.
+    side: THREE.DoubleSide,
     uniforms: uniforms as unknown as Record<string, THREE.IUniform>,
     vertexShader: /* glsl */ `
       ${COMMON_VERTEX_HEAD}
