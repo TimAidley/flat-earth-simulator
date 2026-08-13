@@ -30,14 +30,28 @@ const manifest = await readFile(join(DIST, BUNDLE, 'manifest.json'), 'utf8');
 const parsed = JSON.parse(manifest);
 const terrain = await readFile(join(DIST, BUNDLE, parsed.terrain.file));
 const buildings = await readFile(join(DIST, BUNDLE, parsed.buildings.file), 'utf8');
+const tide = parsed.tide
+  ? await readFile(join(DIST, BUNDLE, parsed.tide.file), 'utf8')
+  : '[]';
 
-// Strip the wrapper: the host supplies doctype/head/body.
-const head = html.slice(html.indexOf('<style>'), html.indexOf('</style>') + 8);
-const bodyStart = html.indexOf('<body>') + '<body>'.length;
+// The entry is already bare page content, and Vite passes it through without
+// adding a doctype or a body element, so nothing may assume those exist —
+// looking for <body> and missing it would silently produce a broken page.
+const styleMatch = html.match(/<style>[\s\S]*?<\/style>/);
+if (!styleMatch) throw new Error('no <style> block found in the built HTML');
+const head = styleMatch[0];
+
 const body = html
-  .slice(bodyStart, html.indexOf('</body>'))
+  .replace(styleMatch[0], '')
   .replace(/<script[^>]*src="[^"]*"[^>]*><\/script>/g, '')
+  .replace(/<title>[\s\S]*?<\/title>/g, '')
+  .replace(/<link[^>]*>/g, '')
+  .replace(/<\/?(?:!doctype|html|head|body)[^>]*>/gi, '')
   .trim();
+
+if (!body.includes('id="view"')) {
+  throw new Error('extracted body is missing the canvas — the extraction is wrong');
+}
 
 const title = 'Bay Trail Horizon';
 
@@ -50,6 +64,7 @@ ${body}
 
 <script type="application/json" id="embedded-manifest">${safe(manifest)}</script>
 <script type="application/json" id="embedded-buildings">${safe(buildings)}</script>
+<script type="application/json" id="embedded-tide">${safe(tide)}</script>
 <script type="text/plain" id="embedded-terrain">${terrain.toString('base64')}</script>
 <script type="module">
 ${js}
@@ -65,3 +80,4 @@ console.log(`${path}  ${mb(Buffer.byteLength(out))}`);
 console.log(`  script    ${mb(js.length)}`);
 console.log(`  terrain   ${mb(terrain.length)} raw -> ${mb((terrain.length * 4) / 3)} base64`);
 console.log(`  buildings ${mb(buildings.length)} (${JSON.parse(buildings).length} features)`);
+console.log(`  tide      ${mb(tide.length)} (${JSON.parse(tide).length} stations)`);
