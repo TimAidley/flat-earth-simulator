@@ -60,6 +60,31 @@ jobs:
         timeout-minutes: 25
         run: npm run build:scene -- scenes/bay-area.json --strict
 
+      # Building name matching needs the Overture layer, which only exists on a
+      # runner. Dry run: this rewrites hand-authored config, so the diff gets
+      # read before it is taken.
+      - name: Resolve scene coordinates against Overture
+        if: always()
+        run: |
+          npm run resolve:scene -- bundles/bay-area --scene scenes/bay-area.json \
+            --out resolved-bay-area.json | tee resolved.log
+          {
+            echo '### Resolved coordinates'
+            echo '```'
+            cat resolved.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload resolved scene
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-scene
+          path: |
+            resolved-bay-area.json
+            resolved.log
+          if-no-files-found: warn
+
       - name: Summarise bundle
         if: always()
         run: |

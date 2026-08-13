@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "sightline": "tsx src/build/cli/sightline.ts",
-    "build:scene": "tsx src/build/cli/build-scene.ts"
+    "build:scene": "tsx src/build/cli/build-scene.ts",
+    "resolve:scene": "tsx src/build/cli/resolve-scene.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

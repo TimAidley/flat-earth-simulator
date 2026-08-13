@@ -35,16 +35,21 @@
   },
   "tide": {
     "provider": "noaa-harcon",
-    "stationIds": ["9414290", "9414863"]
+    "stationIds": [
+      "9414290",
+      "9414863"
+    ]
   },
   "observers": [
     {
       "id": "richmond-annex",
       "name": "Bay Trail, Richmond Annex",
-      "lat": 37.9075,
-      "lon": -122.3345,
+      "lat": 37.90774774774775,
+      "lon": -122.33488636363636,
       "eyeHeight": 1.6,
-      "verified": false
+      "verified": false,
+      "groundElevation": 0.8429696559906006,
+      "notes": "Original coordinate fell on water; snapped 44 m to the nearest land cell. The coordinate itself is still unverified."
     },
     {
       "id": "point-isabel",
@@ -52,7 +57,8 @@
       "lat": 37.899,
       "lon": -122.3235,
       "eyeHeight": 1.6,
-      "verified": false
+      "verified": false,
+      "groundElevation": 4.3554621052730065
     },
     {
       "id": "albany-bulb",
@@ -61,15 +67,18 @@
       "lon": -122.3225,
       "eyeHeight": 1.6,
       "verified": false,
-      "notes": "Landfill mound with roughly 10-12 m of accessible relief. The predicted critical observer height for downtown San Francisco is ~11.4 m refracted against ~13.1 m geometric, so this is the one site on the route where the transition can be walked."
+      "notes": "Landfill mound with roughly 10-12 m of accessible relief. The predicted critical observer height for downtown San Francisco is ~11.4 m refracted against ~13.1 m geometric, so this is the one site on the route where the transition can be walked.",
+      "groundElevation": 9.656409457201983
     },
     {
       "id": "albany-beach",
       "name": "Albany Beach",
-      "lat": 37.8875,
-      "lon": -122.3175,
+      "lat": 37.88828828828829,
+      "lon": -122.31647727272727,
       "eyeHeight": 1.6,
-      "verified": false
+      "verified": false,
+      "groundElevation": 0.5575990080833435,
+      "notes": "Original coordinate fell on water; snapped 125 m to the nearest land cell. The coordinate itself is still unverified."
     },
     {
       "id": "berkeley-marina",
@@ -77,7 +86,8 @@
       "lat": 37.869,
       "lon": -122.3175,
       "eyeHeight": 1.6,
-      "verified": false
+      "verified": false,
+      "groundElevation": 4.376632332791488
     },
     {
       "id": "emeryville-marina",
@@ -85,7 +95,8 @@
       "lat": 37.8405,
       "lon": -122.3145,
       "eyeHeight": 1.6,
-      "verified": false
+      "verified": false,
+      "groundElevation": 4.114422897694297
     }
   ],
   "targets": [
@@ -97,7 +108,8 @@
       "structureHeight": 326,
       "baseElevation": 5,
       "verified": false,
-      "notes": "Sightline from the Albany/Berkeley shore passes close to Treasure Island; check the occlusion profile before relying on this target."
+      "notes": "Sightline from the Albany/Berkeley shore passes close to Treasure Island; check the occlusion profile before relying on this target.",
+      "kind": "building"
     },
     {
       "id": "transamerica-pyramid",
@@ -106,7 +118,8 @@
       "lon": -122.4028,
       "structureHeight": 260,
       "baseElevation": 5,
-      "verified": false
+      "verified": false,
+      "kind": "building"
     },
     {
       "id": "ferry-building",
@@ -115,7 +128,8 @@
       "lon": -122.3937,
       "structureHeight": 74,
       "baseElevation": 3,
-      "verified": false
+      "verified": false,
+      "kind": "building"
     },
     {
       "id": "fort-mason",
@@ -125,7 +139,8 @@
       "structureHeight": 20,
       "baseElevation": 2,
       "verified": false,
-      "notes": "Clean over-water sightline from the Albany shore, passing east of Alcatraz."
+      "notes": "Clean over-water sightline from the Albany shore, passing east of Alcatraz.",
+      "kind": "fixed"
     },
     {
       "id": "ggb-south-tower",
@@ -135,7 +150,8 @@
       "structureHeight": 227,
       "baseElevation": 0,
       "verified": false,
-      "notes": "Longest clean over-water sightline available from the route."
+      "notes": "Longest clean over-water sightline available from the route. Kind is fixed: bridge towers are not in the Overture buildings layer and are not summits, so this coordinate still needs checking by hand.",
+      "kind": "fixed"
     },
     {
       "id": "ggb-north-tower",
@@ -144,25 +160,30 @@
       "lon": -122.4787,
       "structureHeight": 227,
       "baseElevation": 0,
-      "verified": false
+      "verified": false,
+      "kind": "fixed"
     },
     {
       "id": "alcatraz",
       "name": "Alcatraz Island",
-      "lat": 37.8267,
-      "lon": -122.423,
-      "structureHeight": 41,
+      "lat": 37.82630630630631,
+      "lon": -122.42215909090909,
+      "structureHeight": 42.7498893737793,
       "baseElevation": 0,
-      "verified": false
+      "verified": false,
+      "kind": "summit",
+      "notes": "Snapped to the highest DEM cell within 1500 m. Derived from the scene's own terrain, so self-consistent but not independently verified."
     },
     {
       "id": "angel-island",
       "name": "Angel Island (Mount Livermore)",
-      "lat": 37.8635,
-      "lon": -122.43,
-      "structureHeight": 240,
+      "lat": 37.86162162162162,
+      "lon": -122.43056818181817,
+      "structureHeight": 237.918212890625,
       "baseElevation": 0,
-      "verified": false
+      "verified": false,
+      "kind": "summit",
+      "notes": "Snapped to the highest DEM cell within 1500 m. Derived from the scene's own terrain, so self-consistent but not independently verified."
     },
     {
       "id": "treasure-island",
@@ -172,16 +193,19 @@
       "structureHeight": 5,
       "baseElevation": 0,
       "verified": false,
-      "notes": "Low made ground on the line between the Albany shore and downtown San Francisco. Present here as a potential occluder, not as a target."
+      "notes": "Low made ground on the line between the Albany shore and downtown San Francisco. Kind is fixed, not summit: it is genuinely flat, and a summit search from here reaches Yerba Buena Island 1.5 km away and returns that instead.",
+      "kind": "fixed"
     },
     {
       "id": "yerba-buena-island",
       "name": "Yerba Buena Island",
-      "lat": 37.808,
-      "lon": -122.3635,
-      "structureHeight": 103,
+      "lat": 37.80972972972973,
+      "lon": -122.36579545454545,
+      "structureHeight": 104.77237701416016,
       "baseElevation": 0,
-      "verified": false
+      "verified": false,
+      "kind": "summit",
+      "notes": "Snapped to the highest DEM cell within 1500 m. Derived from the scene's own terrain, so self-consistent but not independently verified."
     }
   ]
 }

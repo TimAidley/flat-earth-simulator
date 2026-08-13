@@ -38,8 +38,27 @@ export interface Observer extends NamedPoint {
   eyeHeight: number;
 }
 
+/**
+ * What kind of thing a target is, which decides how (and whether) its
+ * coordinate can be resolved automatically.
+ *
+ * This is not decoration. Without it the resolver has to guess, and guessing
+ * wrong is expensive: falling back to "snap to the highest cell nearby" moved
+ * Salesforce Tower 1.5 km onto a hill and Treasure Island 1.5 km onto Yerba
+ * Buena Island. A target whose kind is unknown is left alone.
+ */
+export type TargetKind =
+  /** Resolvable by name against the Overture buildings layer. */
+  | 'building'
+  /** A natural high point; snap to the highest DEM cell nearby. */
+  | 'summit'
+  /** Neither — bridge towers, stretches of waterfront, low made ground. */
+  | 'fixed';
+
 /** Something to look at. */
 export interface Target extends NamedPoint {
+  /** How this target may be resolved. Omitted means "leave alone". */
+  kind?: TargetKind;
   /** Height of the structure above its own base, metres. */
   structureHeight?: number;
   /** Base elevation above the scene datum, metres. */
