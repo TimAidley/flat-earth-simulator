@@ -10,15 +10,15 @@ honest answer is "barely", and a tool worth building has to be able to say so.
 
 ## Status
 
-Phases 0-2 of the plan. No renderer yet.
+Phases 0-3 of the plan.
 
 | | |
 |---|---|
 | `src/core` | geodesy, refraction, sightline geometry. Pure TS. |
 | `src/build` | scene bundles, sightline analysis, coordinate resolution. |
-| `src/app` | not started |
+| `src/app` | three.js renderer, flat/round toggle in the shader. |
 
-144 tests.
+146 tests.
 
 ## Quick start
 
@@ -28,6 +28,7 @@ npm test
 npm run build:scene -- scenes/bay-area.json    # writes bundles/bay-area/
 npm run sightline    -- bundles/bay-area       # rank every observer/target pair
 npm run resolve:scene -- bundles/bay-area --scene scenes/bay-area.json
+npm run dev                                    # renderer at localhost:5173
 ```
 
 `build:scene` writes a terrain grid, buildings, tide constituents and a
@@ -49,6 +50,31 @@ Downtown never places. `richmond-annex` is blocked toward San Francisco by
 terrain at around 9.4 km, almost certainly Brooks Island; obstructed pairs
 score zero rather than merely low, because a blocked sightline is not a weak
 curvature test, it is not a curvature test at all.
+
+## The renderer
+
+`npm run dev` after building a scene. Pick an observer and a target, hit *Aim
+at target*, and toggle Flat Earth.
+
+Notes on what it does and does not do:
+
+- Geometry is built once in a scene-local frame and the observer is a shader
+  uniform, so changing viewpoint or sweeping the radius costs no rebuild.
+- Aiming points at the target's apparent elevation, not merely along its
+  bearing. At 600 mm the frame is about two degrees tall and the Marin
+  headlands sit roughly 1.1 degrees above the horizon, so aiming level puts
+  the thing you asked for just outside the top of the picture.
+- Drag sensitivity scales with field of view. A fixed rate makes long lenses
+  unusable.
+- The custom shaders pull in three.js's `logdepthbuf` chunks. Without them the
+  logarithmic depth buffer flag costs you the work and gives none of the
+  benefit across a scene spanning metres to hundreds of kilometres.
+- Normals are computed in the flat frame. Curvature tilts a surface by at most
+  the ray angle, about 0.14 degrees over 15 km, which is far below anything
+  visible in shading.
+- `npm run shots` drives it headlessly through a few observer/lens/model
+  combinations and writes PNGs, so a renderer regression is visible without a
+  GPU or a human.
 
 ## CI does the work you cannot do locally
 

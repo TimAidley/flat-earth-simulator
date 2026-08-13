@@ -14,10 +14,16 @@
     "typecheck": "tsc --noEmit",
     "sightline": "tsx src/build/cli/sightline.ts",
     "build:scene": "tsx src/build/cli/build-scene.ts",
-    "resolve:scene": "tsx src/build/cli/resolve-scene.ts"
+    "resolve:scene": "tsx src/build/cli/resolve-scene.ts",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "shots": "node scripts/screenshot.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "@types/three": "^0.185.4",
+    "playwright": "^1.62.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
@@ -25,6 +31,8 @@
   "dependencies": {
     "@duckdb/node-api": "^1.5.5-r.4",
     "@types/pngjs": "^6.0.5",
-    "pngjs": "^7.0.0"
+    "pngjs": "^7.0.0",
+    "three": "^0.185.1",
+    "vite": "^5.4.21"
   }
 }
