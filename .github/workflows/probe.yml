@@ -1,0 +1,59 @@
+name: Probe Overture
+
+# Inspecting the source data needs DuckDB's extensions, which are unreachable
+# from some development sandboxes, so this exists to run the query somewhere
+# with ordinary network access and print the answer.
+#
+# The push trigger is scoped to this file. It is here because GitHub will not
+# accept a workflow_dispatch for a workflow it has never seen run, so a
+# dispatch-only workflow is undispatchable until it has run once. Editing the
+# file registers it; after that the inputs below are the interesting path.
+on:
+  workflow_dispatch:
+    inputs:
+      theme:
+        description: Overture theme
+        default: base
+      type:
+        description: Overture type
+        default: infrastructure
+      bbox:
+        description: minLon,minLat,maxLon,maxLat
+        default: '-122.49,37.80,-122.46,37.84'
+      where:
+        description: extra SQL predicate
+        default: ''
+      columns:
+        description: extra SELECT columns
+        default: "subtype, class, names.primary AS name"
+      limit:
+        description: max rows
+        default: '80'
+  push:
+    paths: ['.github/workflows/probe.yml', 'src/build/cli/probe-overture.ts']
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      # Defaults repeated here because a push event carries no inputs. They
+      # describe the Golden Gate towers, which is what this was built for.
+      THEME: ${{ inputs.theme || 'base' }}
+      TYPE: ${{ inputs.type || 'infrastructure' }}
+      BBOX: ${{ inputs.bbox || '-122.49,37.80,-122.46,37.84' }}
+      COLUMNS: ${{ inputs.columns || 'subtype, class, names.primary AS name' }}
+      LIMIT: ${{ inputs.limit || '80' }}
+      WHERE: ${{ inputs.where || '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Query
+        run: |
+          ARGS=(--theme "$THEME" --type "$TYPE" --bbox "$BBOX" --columns "$COLUMNS" --limit "$LIMIT")
+          if [ -n "$WHERE" ]; then ARGS+=(--where "$WHERE"); fi
+          npm run probe -- "${ARGS[@]}" | tee probe.log
+          { echo '```'; cat probe.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

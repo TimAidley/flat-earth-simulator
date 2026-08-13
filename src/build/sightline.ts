@@ -308,7 +308,7 @@ export function analyseSightline(
     profile.push({
       distance: d,
       terrain,
-      building: b ? (terrain ?? 0) + b.height : null,
+      building: b ? (b.baseElevation ?? terrain ?? 0) + b.height : null,
       elevation: 0, // filled per model below; kept for the round case
     });
   }

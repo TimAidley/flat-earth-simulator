@@ -103,9 +103,10 @@ export function buildBuildingsGeometry(
     if (ring.length < 3) continue;
 
     // One ground height for the whole footprint: a building does not follow
-    // the terrain, and sampling per-vertex would shear it.
+    // the terrain, and sampling per-vertex would shear it. An explicit base
+    // elevation wins outright — an elevated deck is not on the ground at all.
     const [lon0, lat0] = ring[0]!;
-    const base = groundAt(lat0, lon0);
+    const base = b.baseElevation ?? groundAt(lat0, lon0);
     const top = base + b.height;
 
     const pts = ring.map(([lon, lat]) => frame.toEN(lat, lon));

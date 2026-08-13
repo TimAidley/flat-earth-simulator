@@ -18,6 +18,7 @@ import { NoaaTideProvider } from '../providers/tide-noaa.ts';
 import { ProviderUnavailableError } from '../providers/types.ts';
 import type { Building, Provenance, TideStation } from '../providers/types.ts';
 import { writeBundle, sampleTerrain } from '../bundle.ts';
+import { expandStructure, towerSpan } from '../structures.ts';
 
 interface Args {
   scenePath: string;
@@ -119,6 +120,26 @@ async function main(): Promise<void> {
     console.warn('     continuing without them; re-run with --strict to make this fatal');
     buildings = { buildings: [], provenance: failedProvenance('Overture Maps buildings', reason) };
     unverified.push(`buildings layer missing: ${reason}`);
+  }
+
+  // --- structures ----------------------------------------------------------
+  // Expanded into ordinary buildings so the renderer and the sightline
+  // calculator handle them through the paths they already have.
+  for (const structure of scene.structures ?? []) {
+    const parts = expandStructure(structure);
+    buildings.buildings.push(...parts);
+    const span = towerSpan(structure);
+    console.log(
+      `  structure: ${structure.name} -> ${parts.length} parts, ` +
+        `tower span ${span.toFixed(1)} m`,
+    );
+    buildings.provenance.notes = [
+      ...(buildings.provenance.notes ?? []),
+      `${structure.name}: ${parts.length} parts from published dimensions. ${structure.source}`,
+    ];
+    if (!structure.verified) {
+      unverified.push(`structure '${structure.id}': ${structure.source}`);
+    }
   }
 
   // --- tide ----------------------------------------------------------------
