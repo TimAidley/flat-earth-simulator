@@ -1,8 +1,17 @@
 name: Pages
 
+# Deploys on merge to the default branch, or on demand.
+#
+# Deliberately not on every push. Publishing needs two repo settings that a
+# workflow token cannot grant itself — Actions must have read and write
+# permissions, and Pages must be sourced from GitHub Actions — so until those
+# are set this job fails, and on a per-push trigger it marks every pull request
+# red for a reason that has nothing to do with the code. The github-pages
+# environment also commonly restricts deployments to the default branch, which
+# is the second reason a feature-branch trigger is the wrong default.
 on:
   push:
-    branches: ['**']
+    branches: [main]
   workflow_dispatch:
 
 # Only one deploy at a time; cancel superseded runs rather than queueing them.
