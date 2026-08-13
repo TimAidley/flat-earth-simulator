@@ -1,0 +1,67 @@
+/**
+ * Build a single self-contained HTML file with the scene embedded.
+ *
+ *   npm run build:standalone           # -> dist-standalone/flat-earth.html
+ *
+ * Everything — script, terrain grid, buildings — is inlined, so the page needs
+ * no network at all. That is what makes it work under a strict
+ * content-security policy, on a phone with no signal at the water's edge, and
+ * as one file you can hand to someone.
+ *
+ * Emitted as page content only — no doctype, html, head or body wrapper — so
+ * it can be published directly as a hosted artifact.
+ */
+
+import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
+
+const DIST = 'dist';
+const OUT_DIR = process.env.OUT_DIR ?? 'dist-standalone';
+const BUNDLE = process.env.BUNDLE ?? 'bay-area';
+
+const html = await readFile(join(DIST, 'index.html'), 'utf8');
+
+const assets = await readdir(join(DIST, 'assets'));
+const jsName = assets.find((f) => f.endsWith('.js'));
+if (!jsName) throw new Error('no built JS found in dist/assets — run `npm run build` first');
+const js = await readFile(join(DIST, 'assets', jsName), 'utf8');
+
+const manifest = await readFile(join(DIST, BUNDLE, 'manifest.json'), 'utf8');
+const parsed = JSON.parse(manifest);
+const terrain = await readFile(join(DIST, BUNDLE, parsed.terrain.file));
+const buildings = await readFile(join(DIST, BUNDLE, parsed.buildings.file), 'utf8');
+
+// Strip the wrapper: the host supplies doctype/head/body.
+const head = html.slice(html.indexOf('<style>'), html.indexOf('</style>') + 8);
+const bodyStart = html.indexOf('<body>') + '<body>'.length;
+const body = html
+  .slice(bodyStart, html.indexOf('</body>'))
+  .replace(/<script[^>]*src="[^"]*"[^>]*><\/script>/g, '')
+  .trim();
+
+const title = 'Bay Trail Horizon';
+
+// JSON inside a script tag must not be able to close it early.
+const safe = (s) => s.replace(/<\//g, '<\\/');
+
+const out = `<title>${title}</title>
+${head}
+${body}
+
+<script type="application/json" id="embedded-manifest">${safe(manifest)}</script>
+<script type="application/json" id="embedded-buildings">${safe(buildings)}</script>
+<script type="text/plain" id="embedded-terrain">${terrain.toString('base64')}</script>
+<script type="module">
+${js}
+</script>
+`;
+
+await mkdir(OUT_DIR, { recursive: true });
+const path = join(OUT_DIR, 'flat-earth.html');
+await writeFile(path, out);
+
+const mb = (n) => `${(n / 1024 / 1024).toFixed(2)} MB`;
+console.log(`${path}  ${mb(Buffer.byteLength(out))}`);
+console.log(`  script    ${mb(js.length)}`);
+console.log(`  terrain   ${mb(terrain.length)} raw -> ${mb((terrain.length * 4) / 3)} base64`);
+console.log(`  buildings ${mb(buildings.length)} (${JSON.parse(buildings).length} features)`);

@@ -5,3 +5,4 @@ bundles/
 *.log
 .DS_Store
 shots/
+dist-standalone/

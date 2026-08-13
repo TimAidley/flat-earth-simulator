@@ -26,16 +26,46 @@ const BUNDLE = new URLSearchParams(location.search).get('bundle') ?? 'bay-area';
 /** Trailing slash guaranteed by Vite; '/' when served from the web root. */
 const BASE = import.meta.env.BASE_URL;
 
+/**
+ * Read a bundle inlined into the page, if one is present.
+ *
+ * The standalone build embeds the whole scene so the page works with no
+ * network at all — which is what a strict content-security policy, an offline
+ * phone on the shoreline, and a single shareable file all need.
+ */
+function embedded(id: string): string | null {
+  return document.getElementById(id)?.textContent?.trim() ?? null;
+}
+
+function decodeBase64(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
 async function loadBundle(): Promise<{
   manifest: BundleManifest;
   terrain: TerrainGrid;
   buildings: Building[];
 }> {
-  const manifest = (await (await fetch(`${BASE}${BUNDLE}/manifest.json`)).json()) as BundleManifest;
-  const raw = await (await fetch(`${BASE}${BUNDLE}/${manifest.terrain.file}`)).arrayBuffer();
-  const buildings = (await (
-    await fetch(`${BASE}${BUNDLE}/${manifest.buildings.file}`)
-  ).json()) as Building[];
+  const inlineManifest = embedded('embedded-manifest');
+  let manifest: BundleManifest;
+  let raw: ArrayBuffer;
+  let buildings: Building[];
+
+  if (inlineManifest) {
+    manifest = JSON.parse(inlineManifest) as BundleManifest;
+    raw = decodeBase64(embedded('embedded-terrain') ?? '');
+    buildings = JSON.parse(embedded('embedded-buildings') ?? '[]') as Building[];
+  } else {
+    manifest = (await (await fetch(`${BASE}${BUNDLE}/manifest.json`)).json()) as BundleManifest;
+    raw = await (await fetch(`${BASE}${BUNDLE}/${manifest.terrain.file}`)).arrayBuffer();
+    buildings = (await (
+      await fetch(`${BASE}${BUNDLE}/${manifest.buildings.file}`)
+    ).json()) as Building[];
+  }
+
   return {
     manifest,
     terrain: {
@@ -270,8 +300,10 @@ async function main(): Promise<void> {
   addEventListener('resize', resize);
 
   el('provenance').textContent =
-    `${manifest.unverified.length} unverified assumptions in this bundle — ` +
-    'this is a picture, not a measurement.';
+    // Kept ASCII: the standalone build is emitted as page content, so the host
+    // owns <head> and there is no charset declaration we control.
+    `${manifest.unverified.length} unverified assumptions in this bundle. ` +
+    'This is a picture, not a measurement.';
 
   aimAtTarget();
   resize();

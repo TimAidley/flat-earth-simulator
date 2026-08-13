@@ -18,7 +18,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "shots": "node scripts/screenshot.mjs"
+    "shots": "node scripts/screenshot.mjs",
+    "build:standalone": "vite build && node scripts/build-standalone.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
