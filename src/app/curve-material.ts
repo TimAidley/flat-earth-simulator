@@ -24,6 +24,12 @@ export interface CurveUniforms {
    * vertical, so it works in this basis unchanged.
    */
   uObserverXZ: { value: THREE.Vector2 };
+  /**
+   * Water surface height above the scene datum, metres. Terrain cells below it
+   * are lifted to it, so the sea rises and falls with the tide instead of
+   * sitting at a fixed zero.
+   */
+  uWaterLevel: { value: number };
   /** e-folding distance for atmospheric extinction, metres. */
   uVisibility: { value: number };
   uSkyColor: { value: THREE.Color };
@@ -34,6 +40,7 @@ export function makeCurveUniforms(): CurveUniforms {
   return {
     uInvR: { value: 0 },
     uObserverXZ: { value: new THREE.Vector2() },
+    uWaterLevel: { value: 0 },
     uVisibility: { value: 60_000 },
     uSkyColor: { value: new THREE.Color(0xa8c4dc) },
     uSunDir: { value: new THREE.Vector3(0.4, 0.55, -0.7).normalize() },
@@ -46,8 +53,10 @@ const COMMON_VERTEX_HEAD = /* glsl */ `
 ${CURVE_GLSL}
 
 uniform vec2  uObserverXZ;
+uniform float uWaterLevel;
 varying float vDistance;
 varying float vHeight;
+varying float vIsWater;
 varying vec3  vNormalW;
 
 vec3 placeVertex(vec3 local, out float dist) {
@@ -67,6 +76,7 @@ uniform vec3  uSkyColor;
 uniform vec3  uSunDir;
 varying float vDistance;
 varying float vHeight;
+varying float vIsWater;
 varying vec3  vNormalW;
 
 /**
@@ -95,9 +105,13 @@ export function createTerrainMaterial(uniforms: CurveUniforms): THREE.ShaderMate
       ${COMMON_VERTEX_HEAD}
       void main() {
         float dist;
-        vec3 p = placeVertex(position, dist);
+        // Sub-datum cells are clamped flat in the bundle, so lifting them to
+        // the water level floods them and the sea moves with the tide.
+        vec3 flooded = vec3(position.x, max(position.y, uWaterLevel), position.z);
+        vec3 p = placeVertex(flooded, dist);
         vDistance = dist;
-        vHeight = position.y;
+        vHeight = flooded.y;
+        vIsWater = position.y <= uWaterLevel + 0.001 ? 1.0 : 0.0;
         vNormalW = normal;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
         #include <logdepthbuf_vertex>
@@ -107,10 +121,8 @@ export function createTerrainMaterial(uniforms: CurveUniforms): THREE.ShaderMate
       ${COMMON_FRAGMENT_HEAD}
       void main() {
         #include <logdepthbuf_fragment>
-        // Water is the clamped bathymetry standing in for a real mask, so
-        // anything at or below the clamp level is drawn as sea.
         vec3 albedo;
-        if (vHeight <= 0.5) {
+        if (vIsWater > 0.5) {
           albedo = vec3(0.09, 0.16, 0.24);
         } else {
           float t = clamp(vHeight / 300.0, 0.0, 1.0);
@@ -136,6 +148,7 @@ export function createBuildingMaterial(uniforms: CurveUniforms): THREE.ShaderMat
         vec3 p = placeVertex(position, dist);
         vDistance = dist;
         vHeight = position.y;
+        vIsWater = 0.0;
         vNormalW = normal;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
         #include <logdepthbuf_vertex>

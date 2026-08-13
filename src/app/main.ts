@@ -11,6 +11,9 @@ import {
   arcminPerPixel,
   type LatLon,
 } from '../core/index.ts';
+import { predictWaterLevel } from '../core/tide.ts';
+import type { TideStation } from '../build/providers/types.ts';
+import { startCamera, stopCamera, CameraUnavailableError } from './camera.ts';
 import type { BundleManifest } from '../build/bundle.ts';
 import type { TerrainGrid, Building } from '../build/providers/types.ts';
 import { SceneFrame } from './scene-frame.ts';
@@ -48,22 +51,30 @@ async function loadBundle(): Promise<{
   manifest: BundleManifest;
   terrain: TerrainGrid;
   buildings: Building[];
+  tide: TideStation[];
 }> {
   const inlineManifest = embedded('embedded-manifest');
   let manifest: BundleManifest;
   let raw: ArrayBuffer;
   let buildings: Building[];
+  let tide: TideStation[] = [];
 
   if (inlineManifest) {
     manifest = JSON.parse(inlineManifest) as BundleManifest;
     raw = decodeBase64(embedded('embedded-terrain') ?? '');
     buildings = JSON.parse(embedded('embedded-buildings') ?? '[]') as Building[];
+    tide = JSON.parse(embedded('embedded-tide') ?? '[]') as TideStation[];
   } else {
     manifest = (await (await fetch(`${BASE}${BUNDLE}/manifest.json`)).json()) as BundleManifest;
     raw = await (await fetch(`${BASE}${BUNDLE}/${manifest.terrain.file}`)).arrayBuffer();
     buildings = (await (
       await fetch(`${BASE}${BUNDLE}/${manifest.buildings.file}`)
     ).json()) as Building[];
+    if (manifest.tide) {
+      tide = (await (
+        await fetch(`${BASE}${BUNDLE}/${manifest.tide.file}`)
+      ).json()) as TideStation[];
+    }
   }
 
   return {
@@ -77,6 +88,7 @@ async function loadBundle(): Promise<{
       data: new Float32Array(raw),
     },
     buildings,
+    tide,
   };
 }
 
@@ -92,7 +104,7 @@ function sample(grid: TerrainGrid, lat: number, lon: number): number {
 const el = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
 
 async function main(): Promise<void> {
-  const { manifest, terrain, buildings } = await loadBundle();
+  const { manifest, terrain, buildings, tide } = await loadBundle();
   const scene0 = manifest.scene;
 
   const origin: LatLon = {
@@ -144,6 +156,32 @@ async function main(): Promise<void> {
   let k = 0.13;
   let flat = false;
   let eyeHeight = 1.6;
+  let when = new Date();
+  let mode: 'render' | 'split' | 'blend' = 'render';
+  let stream: MediaStream | null = null;
+
+  /**
+   * Water level in the scene datum at the chosen time.
+   *
+   * Nearest station wins. The Bay's range is comparable to the whole curvature
+   * effect at these distances, so a fixed zero would be a first-order error in
+   * every over-water sightline — and zero is not even mean sea level, it is
+   * mean lower low water, about a metre down.
+   */
+  function waterLevel(): number {
+    if (tide.length === 0) return 0;
+    const o = observerPos();
+    let best = tide[0]!;
+    let bestD = Infinity;
+    for (const st of tide) {
+      const d = geodesicInverse(o, { lat: st.lat, lon: st.lon }).distance;
+      if (d < bestD) {
+        bestD = d;
+        best = st;
+      }
+    }
+    return predictWaterLevel(best.constituents, best.datums, when);
+  }
 
   const observer = () => scene0.observers[observerIndex]!;
   const target = () => scene0.targets[targetIndex]!;
@@ -155,6 +193,8 @@ async function main(): Promise<void> {
 
   function eyeAboveDatum(): number {
     const o = observer();
+    // Ground, not water: the observer stands on the shore, so the tide moves
+    // the sea beneath them rather than lifting them with it.
     return (o.groundElevation ?? sample(terrain, o.lat, o.lon)) + eyeHeight;
   }
 
@@ -165,6 +205,7 @@ async function main(): Promise<void> {
 
     const radius = eulerRadius(o.lat, bearing);
     uniforms.uInvR.value = flat ? 0 : inverseEffectiveRadius(radius, k);
+    uniforms.uWaterLevel.value = waterLevel();
 
     camera.position.set(0, eyeAboveDatum(), 0);
     // Bearing is clockwise from true north, and north is -z in world axes.
@@ -202,6 +243,9 @@ async function main(): Promise<void> {
       `eye ${eye.toFixed(2)} m above datum`,
       `hidden by curvature <b>${hidden.toFixed(2)} m</b>${flat ? ' (flat: 0.00 m)' : ''}`,
       `critical eye height ${hCrit.toFixed(2)} m`,
+      tide.length
+        ? `tide ${waterLevel() >= 0 ? '+' : ''}${waterLevel().toFixed(2)} m on the datum`
+        : 'tide unavailable in this bundle',
       `${hfov.toFixed(2)}&deg; horizontal, ${perPx.toFixed(3)}&prime;/px`,
     ].join('<br>');
   }
@@ -263,10 +307,27 @@ async function main(): Promise<void> {
     return input;
   };
 
+  // Local wall-clock in the input, UTC in the maths.
+  const whenInput = el<HTMLInputElement>('when');
+  const toLocalInput = (d: Date): string => {
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  whenInput.value = toLocalInput(when);
+  whenInput.onchange = () => {
+    const parsed = new Date(whenInput.value);
+    if (!Number.isNaN(parsed.getTime())) {
+      when = parsed;
+      update();
+    }
+  };
+
   bind('focal', (v) => { focal = v; });
   bind('k', (v) => { k = v; });
   bind('eye', (v) => { eyeHeight = v; });
   bind('visibility', (v) => { uniforms.uVisibility.value = v * 1000; });
+  bind('blend', (v) => { canvas.style.opacity = String(v / 100); });
 
   const flatToggle = el<HTMLInputElement>('flat');
   flatToggle.onchange = () => {
@@ -302,6 +363,84 @@ async function main(): Promise<void> {
     update();
   });
 
+  // --- panels, camera and display mode -------------------------------------
+  const tuckBtn = el<HTMLButtonElement>('tuck');
+  const camBtn = el<HTMLButtonElement>('camera');
+  const modeBtn = el<HTMLButtonElement>('mode');
+  const video = el<HTMLVideoElement>('cam');
+  const note = el('cam-note');
+  const status = el('bar-status');
+
+  // Tucked by default on a small screen: on a phone the panels cover most of
+  // the picture, which is the one thing you are there to look at.
+  //
+  // Both dimensions matter. A phone held landscape — the orientation the split
+  // view is for — is wide but only a few hundred pixels tall, so a width-only
+  // test leaves the panels covering the whole frame in exactly the case this
+  // exists for.
+  let tucked = innerWidth < 700 || innerHeight < 560;
+  function applyTuck(): void {
+    document.body.classList.toggle('tucked', tucked);
+    tuckBtn.setAttribute('aria-pressed', String(tucked));
+    tuckBtn.title = tucked ? 'Show the panels' : 'Hide the panels';
+  }
+  tuckBtn.onclick = () => {
+    tucked = !tucked;
+    applyTuck();
+  };
+  applyTuck();
+
+  function applyMode(): void {
+    document.body.classList.remove('mode-render', 'mode-split', 'mode-blend');
+    document.body.classList.add(`mode-${mode}`);
+    modeBtn.textContent = mode === 'render' ? 'Split' : mode === 'split' ? 'Blend' : 'Render';
+    canvas.style.opacity = mode === 'blend' ? String(Number(el<HTMLInputElement>('blend').value) / 100) : '1';
+    resize();
+  }
+  modeBtn.onclick = () => {
+    mode = mode === 'render' ? 'split' : mode === 'split' ? 'blend' : 'render';
+    applyMode();
+  };
+
+  camBtn.onclick = async () => {
+    if (stream) {
+      stopCamera(stream);
+      stream = null;
+      video.srcObject = null;
+      camBtn.setAttribute('aria-pressed', 'false');
+      status.textContent = '';
+      mode = 'render';
+      applyMode();
+      return;
+    }
+    camBtn.disabled = true;
+    try {
+      const started = await startCamera();
+      stream = started.stream;
+      video.srcObject = stream;
+      camBtn.setAttribute('aria-pressed', 'true');
+      status.textContent = started.label || 'camera on';
+      note.className = started.notes.length ? 'show' : '';
+      note.textContent = started.notes.join(' ');
+      if (mode === 'render') {
+        mode = 'split';
+        applyMode();
+      }
+    } catch (err) {
+      const message =
+        err instanceof CameraUnavailableError ? `${err.message} ${err.remedy}` :
+        err instanceof Error ? err.message : String(err);
+      note.className = 'show';
+      note.textContent = message;
+      status.textContent = 'camera unavailable';
+      // The note lives in the panel, so it is no use while tucked away.
+      tucked = false;
+      applyTuck();
+    } finally {
+      camBtn.disabled = false;
+    }
+  };
+
   function resize(): void {
     renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
     update();
@@ -314,6 +453,7 @@ async function main(): Promise<void> {
     `${manifest.unverified.length} unverified assumptions in this bundle. ` +
     'This is a picture, not a measurement.';
 
+  applyMode();
   aimAtTarget();
   resize();
   renderer.setAnimationLoop(() => renderer.render(scene, camera));

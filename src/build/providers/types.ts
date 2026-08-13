@@ -115,23 +115,8 @@ export interface BuildingProvider {
   ): Promise<{ buildings: Building[]; provenance: Provenance }>;
 }
 
-/**
- * Tidal harmonic constituents, so that water level can be predicted offline.
- *
- * Baking constituents rather than a fetched prediction series matters here:
- * the shoreline has patchy signal, and predictions expire while constituents
- * do not. Tide is a first-order term, not a detail — the Bay's diurnal range
- * is comparable to the entire curvature effect being measured.
- */
-export interface TidalConstituent {
-  name: string;
-  /** Metres. */
-  amplitude: number;
-  /** Degrees. */
-  phaseDeg: number;
-  /** Degrees per hour. */
-  speedDegPerHour: number;
-}
+export type { TidalConstituent, StationDatums } from '../../core/tide.ts';
+import type { TidalConstituent, StationDatums } from '../../core/tide.ts';
 
 export interface TideStation {
   id: string;
@@ -140,6 +125,8 @@ export interface TideStation {
   lon: number;
   datum: VerticalDatum;
   constituents: TidalConstituent[];
+  /** Offsets between this station's datums, needed to reach the scene datum. */
+  datums: StationDatums;
 }
 
 export interface TideProvider {

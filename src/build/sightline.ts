@@ -104,6 +104,15 @@ export interface AnalyseOptions {
   stepMetres?: number;
   /** Include buildings as occluders. */
   includeBuildings?: boolean;
+  /**
+   * Water surface height above the scene datum, metres.
+   *
+   * The terrain grid has sub-datum cells clamped flat, so raising this floods
+   * them to the given level. Tide is a first-order term over these ranges —
+   * the Bay's range is comparable to the whole curvature effect — so leaving
+   * it at zero quietly assumes mean lower low water.
+   */
+  waterLevel?: number;
 }
 
 /**
@@ -293,6 +302,7 @@ export function analyseSightline(
   const invR = inverseEffectiveRadius(radius, k);
 
   const step = opts.stepMetres ?? bundle.manifest.scene.terrain.cellSizeMetres;
+  const waterLevel = opts.waterLevel ?? 0;
   const index =
     opts.includeBuildings !== false && bundle.buildings.length
       ? new BuildingIndex(bundle.buildings)
@@ -303,7 +313,8 @@ export function analyseSightline(
   const profile: ProfileSample[] = [];
   for (let d = step; d < distance - step; d += step) {
     const p = geodesicDirect(observer.position, initialBearing, d);
-    const terrain = sampleTerrain(bundle.terrain, p.lat, p.lon);
+    const sampled = sampleTerrain(bundle.terrain, p.lat, p.lon);
+    const terrain = sampled === null ? null : Math.max(sampled, waterLevel);
     const b = index?.tallestAt(p.lat, p.lon) ?? null;
     profile.push({
       distance: d,

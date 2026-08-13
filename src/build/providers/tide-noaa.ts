@@ -21,7 +21,8 @@
  * schema but has not been run against the live service here.
  */
 
-import type { Provenance, TideProvider, TideStation, TidalConstituent } from './types.ts';
+import type { Provenance, TideProvider, TideStation } from './types.ts';
+import type { TidalConstituent } from '../../core/tide.ts';
 import { ProviderUnavailableError } from './types.ts';
 
 const MDAPI = 'https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations';
@@ -39,6 +40,10 @@ interface StationResponse {
   stations?: { id: string; name: string; lat: number; lng: number }[];
 }
 
+interface DatumsResponse {
+  datums?: { name: string; value: number }[];
+}
+
 export class NoaaTideProvider implements TideProvider {
   readonly id = 'noaa-harcon';
 
@@ -54,6 +59,23 @@ export class NoaaTideProvider implements TideProvider {
       const info = meta.stations?.[0];
       if (!info) {
         throw new ProviderUnavailableError(this.id, `station ${id} returned no metadata`);
+      }
+
+      // Harmonic constants are referenced to MLLW; the scene works in a
+      // geoid-based datum, so without this offset the predicted level is about
+      // a metre out — the same order as the effect being measured.
+      const datums = await this.getJson<DatumsResponse>(
+        `${MDAPI}/${id}/datums.json?units=metric`,
+      );
+      const find = (n: string): number | undefined =>
+        datums.datums?.find((d) => d.name.toUpperCase() === n)?.value;
+      const mllw = find('MLLW');
+      const msl = find('MSL');
+      if (mllw === undefined || msl === undefined) {
+        throw new ProviderUnavailableError(
+          this.id,
+          `station ${id} did not publish both MLLW and MSL datums`,
+        );
       }
 
       const harcon = await this.getJson<HarconResponse>(
@@ -83,6 +105,10 @@ export class NoaaTideProvider implements TideProvider {
         // NOAA harmonic constants are referenced to MLLW at the station.
         datum: 'mllw',
         constituents,
+        datums: {
+          mslAboveMllw: msl - mllw,
+          source: `NOAA CO-OPS published datums for station ${id} (MSL - MLLW)`,
+        },
       });
     }
 
@@ -97,8 +123,11 @@ export class NoaaTideProvider implements TideProvider {
         verified: true,
         notes: [
           `${stations.length} stations: ${stations.map((s) => `${s.id} (${s.name})`).join(', ')}.`,
-          'Constituents are referenced to MLLW at each station; converting to the scene ' +
-            'datum needs the station\'s published MLLW-to-datum offset.',
+          'Constituents are referenced to MLLW; each station carries its published ' +
+            'MSL-above-MLLW offset so levels can be expressed in the scene datum.',
+          'Mean sea level is taken as the scene datum. MSL departs from the geoid by ocean ' +
+            'dynamic topography, of order a decimetre locally — small against the tide range ' +
+            'it corrects for, but an assumption.',
         ],
       },
     };
@@ -116,26 +145,4 @@ export class NoaaTideProvider implements TideProvider {
     }
     return (await res.json()) as T;
   }
-}
-
-/**
- * Predict water level at a time from harmonic constituents, metres above the
- * station's datum.
- *
- * This is the plain harmonic sum without nodal corrections, which are a
- * sub-decimetre effect on an 18.6-year cycle. That is below the noise floor of
- * everything else in this pipeline, but it is an approximation and is recorded
- * as one.
- */
-export function predictTide(station: TideStation, at: Date): number {
-  // Hours from the epoch NOAA phases are referenced to (GMT, start of 1983).
-  const epoch = Date.UTC(1983, 0, 1, 0, 0, 0);
-  const hours = (at.getTime() - epoch) / 3_600_000;
-
-  let level = 0;
-  for (const c of station.constituents) {
-    const angle = ((c.speedDegPerHour * hours - c.phaseDeg) * Math.PI) / 180;
-    level += c.amplitude * Math.cos(angle);
-  }
-  return level;
 }
