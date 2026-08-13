@@ -1,8 +1,8 @@
 /**
  * Geometry construction: terrain grid to mesh, building footprints to prisms.
  *
- * Positions are scene-local (x east, y height above datum, z north) with no
- * curvature applied — that happens per-vertex in the shader, so the flat/round
+ * Positions are three.js world axes — x east, y height above datum, z south —
+ * with no curvature applied — that happens per-vertex in the shader, so the flat/round
  * toggle stays free and can be swept continuously.
  *
  * Normals are computed in the flat frame. Curvature tilts a surface by at most
@@ -41,16 +41,16 @@ export function buildTerrainGeometry(
       const i = c * stride;
       const lon = bbox.lonMin + ((i + 0.5) / grid.width) * lonSpan;
       const v = grid.data[j * grid.width + i]!;
-      const { east, north } = frame.toEN(lat, lon);
+      const { x, z } = frame.toWorldXZ(lat, lon);
       const o = (r * cols + c) * 3;
-      positions[o] = east;
+      positions[o] = x;
       positions[o + 1] = v === grid.noDataValue ? 0 : v;
-      positions[o + 2] = north;
+      positions[o + 2] = z;
     }
   }
 
-  // Two triangles per quad. Row 0 is the northernmost, so winding is set to
-  // keep front faces upward.
+  // Two triangles per quad. Row 0 is the northernmost and z runs south, so
+  // this winding puts front faces upward.
   const quads = (cols - 1) * (rows - 1);
   const indices = quads * 6 > 65535 ? new Uint32Array(quads * 6) : new Uint16Array(quads * 6);
   let k = 0;
@@ -82,6 +82,10 @@ export function buildTerrainGeometry(
  * Walls carry the silhouette, which is the whole point at these ranges; roofs
  * are closed with a triangle fan, which is exact for convex footprints and
  * imperceptibly wrong for concave ones several kilometres away.
+ *
+ * Footprint ring orientation is not guaranteed by the sources — Overture rings
+ * may wind either way — so the material draws both sides rather than relying
+ * on winding for culling.
  */
 export function buildBuildingsGeometry(
   buildings: Building[],
@@ -109,20 +113,20 @@ export function buildBuildingsGeometry(
     const base = b.baseElevation ?? groundAt(lat0, lon0);
     const top = base + b.height;
 
-    const pts = ring.map(([lon, lat]) => frame.toEN(lat, lon));
+    const pts = ring.map(([lon, lat]) => frame.toWorldXZ(lat, lon));
 
     for (let i = 0; i < pts.length; i++) {
       const p = pts[i]!;
       const q = pts[(i + 1) % pts.length]!;
-      pushTri(p.east, base, p.north, q.east, base, q.north, q.east, top, q.north);
-      pushTri(p.east, base, p.north, q.east, top, q.north, p.east, top, p.north);
+      pushTri(p.x, base, p.z, q.x, base, q.z, q.x, top, q.z);
+      pushTri(p.x, base, p.z, q.x, top, q.z, p.x, top, p.z);
     }
 
     const first = pts[0]!;
     for (let i = 1; i < pts.length - 1; i++) {
       const p = pts[i]!;
       const q = pts[i + 1]!;
-      pushTri(first.east, top, first.north, p.east, top, p.north, q.east, top, q.north);
+      pushTri(first.x, top, first.z, p.x, top, p.z, q.x, top, q.z);
     }
   }
 

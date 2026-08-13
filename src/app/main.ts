@@ -160,18 +160,19 @@ async function main(): Promise<void> {
 
   function update(): void {
     const o = observer();
-    const { east, north } = frame.toEN(o.lat, o.lon);
-    uniforms.uObserverEN.value.set(east, north);
+    const { x, z } = frame.toWorldXZ(o.lat, o.lon);
+    uniforms.uObserverXZ.value.set(x, z);
 
     const radius = eulerRadius(o.lat, bearing);
     uniforms.uInvR.value = flat ? 0 : inverseEffectiveRadius(radius, k);
 
     camera.position.set(0, eyeAboveDatum(), 0);
+    // Bearing is clockwise from true north, and north is -z in world axes.
     const cosEl = Math.cos((elevation * Math.PI) / 180);
     const dir = new THREE.Vector3(
       Math.sin((bearing * Math.PI) / 180) * cosEl,
       Math.sin((elevation * Math.PI) / 180),
-      Math.cos((bearing * Math.PI) / 180) * cosEl,
+      -Math.cos((bearing * Math.PI) / 180) * cosEl,
     );
     camera.lookAt(camera.position.clone().add(dir));
 
@@ -231,8 +232,16 @@ async function main(): Promise<void> {
   function aimAtTarget(): void {
     const t = target();
     const to = { lat: t.lat, lon: t.lon };
-    const { distance, initialBearing } = geodesicInverse(observerPos(), to);
-    bearing = initialBearing;
+    const { distance } = geodesicInverse(observerPos(), to);
+
+    // Aim through the same projection the geometry is built in, not through
+    // the geodesic bearing. The scene frame sits a near-constant ~5 arcmin off
+    // true across this scene, so aiming at the true bearing lands the target
+    // about fifty pixels off centre at 600 mm. The readout still reports the
+    // geodesic bearing, which is the honest number.
+    const o = frame.toWorldXZ(observerPos().lat, observerPos().lon);
+    const w = frame.toWorldXZ(t.lat, t.lon);
+    bearing = ((Math.atan2(w.x - o.x, -(w.z - o.z)) * 180) / Math.PI + 360) % 360;
 
     const invR = flat ? 0 : inverseEffectiveRadius(eulerRadius(observer().lat, bearing), k);
     const mid = (t.baseElevation ?? 0) + (t.structureHeight ?? 0) / 2;
