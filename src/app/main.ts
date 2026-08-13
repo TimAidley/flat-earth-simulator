@@ -23,16 +23,18 @@ import {
 } from './curve-material.ts';
 
 const BUNDLE = new URLSearchParams(location.search).get('bundle') ?? 'bay-area';
+/** Trailing slash guaranteed by Vite; '/' when served from the web root. */
+const BASE = import.meta.env.BASE_URL;
 
 async function loadBundle(): Promise<{
   manifest: BundleManifest;
   terrain: TerrainGrid;
   buildings: Building[];
 }> {
-  const manifest = (await (await fetch(`/${BUNDLE}/manifest.json`)).json()) as BundleManifest;
-  const raw = await (await fetch(`/${BUNDLE}/${manifest.terrain.file}`)).arrayBuffer();
+  const manifest = (await (await fetch(`${BASE}${BUNDLE}/manifest.json`)).json()) as BundleManifest;
+  const raw = await (await fetch(`${BASE}${BUNDLE}/${manifest.terrain.file}`)).arrayBuffer();
   const buildings = (await (
-    await fetch(`/${BUNDLE}/${manifest.buildings.file}`)
+    await fetch(`${BASE}${BUNDLE}/${manifest.buildings.file}`)
   ).json()) as Building[];
   return {
     manifest,

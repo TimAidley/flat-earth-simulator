@@ -7,6 +7,10 @@ import { resolve } from 'node:path';
  * a copy step. Run `npm run build:scene` before `npm run dev`.
  */
 export default defineConfig({
+  // GitHub Pages serves a project site from /<repo>/, not the web root. The
+  // app resolves bundle URLs through import.meta.env.BASE_URL so the same
+  // build works at either.
+  base: process.env.PAGES_BASE ?? '/',
   root: resolve(import.meta.dirname, 'src/app'),
   publicDir: resolve(import.meta.dirname, 'bundles'),
   build: {
