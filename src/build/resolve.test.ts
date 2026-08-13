@@ -80,6 +80,18 @@ describe('matchBuilding', () => {
     expect(matchBuilding([tower], 'Salesforce', near, 2000)?.id).toBe('a');
   });
 
+  it('matches names that overlap without either containing the other', () => {
+    // The real case: our 'Ferry Building clock tower' against Overture's
+    // 'San Francisco Ferry Building'. A substring test rejects this pair.
+    const ferry: Building = { ...tower, id: 'f', name: 'San Francisco Ferry Building' };
+    expect(matchBuilding([ferry], 'Ferry Building clock tower', near, 2000)?.id).toBe('f');
+  });
+
+  it('still rejects names that merely share a common word', () => {
+    const other: Building = { ...tower, id: 'o', name: 'Transamerica Pyramid' };
+    expect(matchBuilding([other], 'Salesforce Tower', near, 2000)).toBeNull();
+  });
+
   it('refuses a match outside the search radius', () => {
     // An unbounded name match can land in another city entirely.
     expect(matchBuilding([tower], 'Salesforce Tower', { lat: 37.6, lon: -122.0 }, 2000))

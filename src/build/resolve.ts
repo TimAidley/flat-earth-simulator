@@ -75,6 +75,45 @@ function normalise(s: string): string {
 }
 
 /**
+ * Words that appear in so many building names that sharing one is no evidence
+ * at all. Kept deliberately short: anything genuinely distinguishing (compass
+ * points, for instance, which separate the two Golden Gate towers) must stay.
+ */
+const GENERIC_TOKENS = new Set([
+  'the', 'of', 'and', 'a', 'at',
+  'building', 'tower', 'towers', 'clock', 'plaza', 'center', 'centre', 'hall',
+]);
+
+function distinctiveTokens(s: string): Set<string> {
+  const all = normalise(s).split(' ').filter(Boolean);
+  const kept = all.filter((t) => !GENERIC_TOKENS.has(t));
+  // A name made entirely of generic words still has to match on something.
+  return new Set(kept.length ? kept : all);
+}
+
+/**
+ * Token-overlap score in [0,1], measured over distinctive tokens only.
+ *
+ * Substring matching is too brittle: 'Ferry Building clock tower' and
+ * Overture's 'San Francisco Ferry Building' are plainly the same building, but
+ * neither string contains the other. Plain token overlap is too loose in the
+ * other direction: 'Salesforce Tower' and 'Ferry Building clock tower' share
+ * 'tower' and nothing that matters. Scoring over distinctive tokens accepts
+ * the first pair and rejects the second.
+ */
+export function nameOverlap(a: string, b: string): number {
+  const ta = distinctiveTokens(a);
+  const tb = distinctiveTokens(b);
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let shared = 0;
+  for (const t of ta) if (tb.has(t)) shared++;
+  return shared / Math.min(ta.size, tb.size);
+}
+
+/** Minimum distinctive-token overlap for a name to be treated as the same feature. */
+export const NAME_MATCH_THRESHOLD = 0.6;
+
+/**
  * Find the building whose name best matches `query`, within `radiusMetres` of
  * the guessed position. The radius matters: Overture contains many buildings
  * with similar names, and an unbounded name match can land in another city.
@@ -85,18 +124,22 @@ export function matchBuilding(
   near: { lat: number; lon: number },
   radiusMetres: number,
 ): Building | null {
-  const q = normalise(query);
-  let best: { building: Building; distance: number } | null = null;
+  let best: { building: Building; score: number; distance: number } | null = null;
 
   for (const b of buildings) {
     if (!b.name) continue;
-    const n = normalise(b.name);
-    if (n !== q && !n.includes(q) && !q.includes(n)) continue;
+    const score = nameOverlap(query, b.name);
+    if (score < NAME_MATCH_THRESHOLD) continue;
 
     const [lon, lat] = ringCentroid(b.footprint);
     const { distance } = geodesicInverse(near, { lat, lon });
     if (distance > radiusMetres) continue;
-    if (!best || distance < best.distance) best = { building: b, distance };
+
+    // Best name first, nearest as the tie-break: two buildings can share a
+    // name, but a better-matching name is stronger evidence than proximity.
+    if (!best || score > best.score || (score === best.score && distance < best.distance)) {
+      best = { building: b, score, distance };
+    }
   }
   return best?.building ?? null;
 }
