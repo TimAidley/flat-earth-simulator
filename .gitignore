@@ -1,0 +1,8 @@
+node_modules/
+dist/
+bundles/
+.cache/
+*.log
+.DS_Store
+shots/
+dist-standalone/
