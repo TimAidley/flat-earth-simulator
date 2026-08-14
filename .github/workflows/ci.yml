@@ -116,3 +116,36 @@ jobs:
           name: bay-area-bundle
           path: bundles/bay-area/
           if-no-files-found: warn
+
+      # The browser checks live in this job because they need a real bundle,
+      # and a real bundle only exists on a runner. Between them they cover the
+      # parts that cannot be unit tested: the renderer against a GPU-less
+      # Chromium, and the camera, satellites and magnetometer against
+      # Chromium's fakes for all three.
+      - name: Install Chromium
+        if: always()
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser checks
+        if: always()
+        run: |
+          if [ ! -f bundles/bay-area/manifest.json ]; then
+            echo "No bundle was built; nothing to check in the browser." >&2
+            exit 1
+          fi
+          npm run build
+          npx vite preview --port 4173 --strictPort &
+          for _ in $(seq 1 30); do
+            curl -sf -o /dev/null http://localhost:4173/ && break
+            sleep 1
+          done
+          node scripts/screenshot.mjs
+          node scripts/phone-check.mjs
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: shots/
+          if-no-files-found: warn

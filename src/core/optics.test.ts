@@ -3,6 +3,7 @@ import {
   verticalFovDeg,
   horizontalFovDeg,
   focalLength35mmFromVerticalFov,
+  focalLength35mmFromHorizontalFov,
   arcminPerPixel,
   angularSizeArcmin,
   pixelsSubtended,
@@ -48,6 +49,25 @@ describe('field of view', () => {
       const fov = verticalFovDeg(f, THREE_TWO);
       expect(focalLength35mmFromVerticalFov(fov, THREE_TWO)).toBeCloseTo(f, 6);
     }
+  });
+
+  it('round-trips through focalLength35mmFromHorizontalFov', () => {
+    for (const aspect of [THREE_TWO, FOUR_THREE, 16 / 9, 0.6]) {
+      for (const f of [16, 50, 300, 1200]) {
+        const fov = horizontalFovDeg(f, aspect);
+        expect(focalLength35mmFromHorizontalFov(fov, aspect)).toBeCloseTo(f, 6);
+      }
+    }
+  });
+
+  /**
+   * The number the camera match needs: given a lens of fixed angle, this is
+   * the widest the render may go before the two frames stop agreeing.
+   */
+  it('turns a phone camera field of view into a focal length', () => {
+    const f = focalLength35mmFromHorizontalFov(62, 4 / 3);
+    expect(f).toBeGreaterThan(25);
+    expect(f).toBeLessThan(32);
   });
 });
 

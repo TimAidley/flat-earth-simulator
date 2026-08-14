@@ -20,7 +20,8 @@
     "preview": "vite preview",
     "shots": "node scripts/screenshot.mjs",
     "build:standalone": "vite build && node scripts/build-standalone.mjs",
-    "probe": "tsx src/build/cli/probe-overture.ts"
+    "probe": "tsx src/build/cli/probe-overture.ts",
+    "phone-check": "node scripts/phone-check.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

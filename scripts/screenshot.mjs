@@ -65,7 +65,9 @@ const cases = [
 
 for (const c of cases) {
   await setup({ observer: OBSERVER, target: TARGET, ...c });
-  await page.screenshot({ path: `${OUT}/${c.name}.png` });
+  // Generous: these runners have no GPU, and a frame out of SwiftShader can
+  // take far longer than the 30-second default allows.
+  await page.screenshot({ path: `${OUT}/${c.name}.png`, timeout: 120_000 });
   const readout = (await page.textContent('#readout')).replace(/\s+/g, ' ');
   console.log(`${c.name.padEnd(20)} ${readout}`);
 }

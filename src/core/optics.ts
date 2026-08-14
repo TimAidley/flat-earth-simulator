@@ -45,6 +45,18 @@ export function focalLength35mmFromVerticalFov(fovDeg: number, aspect: number): 
   return height / (2 * Math.tan((fovDeg * Math.PI) / 360));
 }
 
+/**
+ * The same from a horizontal field of view.
+ *
+ * This is the direction needed to answer "how wide can the render go before
+ * the camera cannot follow", since a camera's field of view is a fixed angle
+ * and the render's is whatever the focal slider says.
+ */
+export function focalLength35mmFromHorizontalFov(fovDeg: number, aspect: number): number {
+  const { width } = equivalentFrame(aspect);
+  return width / (2 * Math.tan((fovDeg * Math.PI) / 360));
+}
+
 /** Angular resolution in arcminutes per pixel, given a field of view and pixel count. */
 export function arcminPerPixel(fovDeg: number, pixels: number): number {
   return (fovDeg * 60) / pixels;

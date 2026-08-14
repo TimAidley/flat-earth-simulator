@@ -73,6 +73,20 @@ export interface SceneConfig {
   /** Datum every height in the bundle is expressed in. */
   verticalDatum: VerticalDatum;
   datumSeparations: DatumSeparations;
+  /**
+   * Magnetic declination at the scene, degrees east of true north.
+   *
+   * Needed because Chrome for Android reports device heading against magnetic
+   * north and leaves the correction to the caller, while iOS reports true
+   * north already. It is a property of the place, so it belongs to the scene:
+   * about 13 degrees east in the Bay Area, zero in the Azores, and past 20 in
+   * Alaska.
+   *
+   * It drifts by roughly a tenth of a degree a year — well inside the two to
+   * five degrees the magnetometer itself is wrong by, so a single figure per
+   * scene is proportionate. Omit it and the correction is skipped.
+   */
+  magneticDeclinationDeg?: number;
   terrain: {
     provider: 'terrarium';
     zoom?: number;

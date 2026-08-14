@@ -76,6 +76,57 @@ Notes on what it does and does not do:
   combinations and writes PNGs, so a renderer regression is visible without a
   GPU or a human.
 
+## On a phone
+
+The point of the phone is holding the render up against the thing itself. Six
+controls in the top bar: tuck the panels away, camera on, split/blend/render,
+location, gyro, full screen.
+
+**Choosing a lens.** Device labels are blank until camera permission has been
+granted, so the lens menu can only be filled in after a camera has been opened
+once. iOS 16.3 and later lists the back lenses individually; before that they
+are fused into one device and the telephoto cannot be reached from the web at
+all. iOS supports no `zoom` constraint in any browser, because they are all
+WKWebView, so picking a lens by name is the only mechanism there is.
+
+**Matching the zoom.** No browser will tell you what angle a camera frame
+covers — there is no field of view in `MediaTrackSettings`, no focal length,
+and no EXIF on a live track. So the angle is calibrated instead: point the
+camera at two landmarks, tap each one, and there is exactly one focal length
+that reconciles the pixel offsets with the angular separation the scene already
+knows. It is stored per lens and per capture size, because the same lens
+delivers different crops at different resolutions. Until then the app guesses
+from the lens name and says so.
+
+With the angle known, the video is cropped to whatever the focal slider asks
+for. Past the lens's own reach that adds no detail, but both halves of the
+screen then mean the same thing, which matters more. Going *wider* than the
+lens cannot be faked, so the slider stops at the widest matchable focal length
+rather than quietly showing two different angles side by side.
+
+**Standing where you are.** The horizontal fix is used and the altitude is
+thrown away. GPS altitude is often absent on Android and carries ten to twenty
+metres of error where it exists — several times the four to eight metres of
+hidden height the whole exercise is trying to see. Ground elevation comes from
+the terrain grid, sampled at the fix; five metres of lateral error moves a
+thirteen-kilometre sightline by five metres, which is nothing.
+
+**The gyro is a tracker, not an aim.** Pitch and roll are good to about a
+degree. Heading needs the magnetometer and is good to two to five degrees at
+best — worse beside a car or a railing — while a 600 mm frame is 3.4 degrees
+wide. So drag a landmark into place once and the offset is held from then on,
+with the sensor supplying only the motion. iOS needs `requestPermission()` from
+inside a tap and reports true north in `webkitCompassHeading`; Chrome for
+Android fires `deviceorientationabsolute` against *magnetic* north, so the
+scene carries its own `magneticDeclinationDeg`. It can be switched off.
+
+- `npm run phone-check` drives all of it headlessly: Chromium's fake camera
+  stands in for a lens, Playwright's geolocation override for a fix, and
+  dispatched `DeviceOrientationEvent`s for the sensors. The zoom match is
+  asserted numerically — the angle the cropped camera shows against the angle
+  the render draws — because a factor of 1.1 between them is invisible and
+  ruins the comparison.
+
 ## CI does the work you cannot do locally
 
 Two upstreams are unreachable from some development environments —
