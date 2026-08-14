@@ -102,13 +102,15 @@
     top: calc(10px + env(safe-area-inset-top));
     left: calc(10px + env(safe-area-inset-left));
     right: calc(10px + env(safe-area-inset-right));
-    display: flex; gap: 6px; align-items: center;
+    /* Wraps rather than crushing the status into an unreadable sliver: six
+       named controls do not fit across a phone held portrait. */
+    display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
     background: var(--panel);
     border: 1px solid var(--edge);
     border-radius: 10px;
     padding: 6px 8px;
   }
-  #bar .grow { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); }
+  #bar .grow { flex: 1 1 90px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dim); }
   #bar button { padding: 7px 9px; }
 
   #provenance {
@@ -191,8 +193,10 @@
   <button id="tuck" aria-pressed="false" title="Hide the panels">&#9776;</button>
   <button id="camera" aria-pressed="false">Camera</button>
   <button id="mode">Split</button>
-  <button id="gps" aria-pressed="false" title="Stand where I am">&#9678;</button>
-  <button id="gyro" aria-pressed="false" title="Follow the phone's orientation">&#8635;</button>
+  <!-- Named, not drawn. A bare glyph on a phone has no tooltip to explain it,
+       and these two are the controls least likely to be guessed. -->
+  <button id="gps" aria-pressed="false" title="Stand where I am">GPS</button>
+  <button id="gyro" aria-pressed="false" title="Follow the phone's orientation">Gyro</button>
   <button id="full" aria-pressed="false" title="Full screen">&#9974;</button>
   <span class="grow" id="bar-status"></span>
 </div>

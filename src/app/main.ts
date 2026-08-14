@@ -363,12 +363,26 @@ async function main(): Promise<void> {
   // --- controls -----------------------------------------------------------
   const obsSel = el<HTMLSelectElement>('observer');
   scene0.observers.forEach((o, i) => obsSel.add(new Option(o.name, String(i))));
+  // Never disabled. A greyed-out entry sitting where someone would look for
+  // the feature reads as "not supported here", when all it meant was "no fix
+  // yet" — so picking it is what asks for one.
   const gpsOption = new Option('My location (GPS)', 'gps');
-  gpsOption.disabled = true;
   obsSel.add(gpsOption);
   obsSel.onchange = () => {
-    useGps = obsSel.value === 'gps';
-    if (!useGps) observerIndex = Number(obsSel.value);
+    if (obsSel.value === 'gps') {
+      setGpsOn(true);
+      return;
+    }
+    observerIndex = Number(obsSel.value);
+    // Choosing a named place means you are not standing where you are, so the
+    // watch is released rather than left running behind a button that still
+    // says it is on — the receiver costs battery, and a control that lies
+    // about its own state is worse than one that is merely inconvenient.
+    if (stopGps) {
+      setGpsOn(false);
+      return;
+    }
+    useGps = false;
     requestUpdate();
   };
 
@@ -691,28 +705,40 @@ async function main(): Promise<void> {
   };
 
   // --- location -------------------------------------------------------------
-  gpsBtn.onclick = () => {
-    if (stopGps) {
-      stopGps();
+  //
+  // One switch, reachable two ways — the bar button and the observer menu —
+  // because the menu is where someone looks for a place to stand and the
+  // button is what they find once the panels are tucked away. Both go through
+  // here so the two can never disagree about whether the watch is running.
+  function setGpsOn(on: boolean): void {
+    if (!on) {
+      stopGps?.();
       stopGps = null;
       useGps = false;
+      gpsFix = null;
+      gpsOption.text = 'My location (GPS)';
       gpsBtn.setAttribute('aria-pressed', 'false');
-      gpsOption.disabled = true;
       obsSel.value = String(observerIndex);
+      status.textContent = stream ? currentLensLabel : '';
       requestUpdate();
       return;
     }
+    if (stopGps) return;
+
+    // Selected straight away, before any fix exists. The render keeps using
+    // the last named observer until one arrives — a first fix can take a few
+    // seconds outdoors and much longer indoors, and a menu that silently
+    // refuses to change looks broken.
+    useGps = true;
+    obsSel.value = 'gps';
+    gpsOption.text = 'My location (waiting for a fix…)';
     gpsBtn.setAttribute('aria-pressed', 'true');
     status.textContent = 'waiting for a fix…';
+
     stopGps = watchLocation(
       (fix) => {
         gpsFix = fix;
-        gpsOption.disabled = false;
         gpsOption.text = `My location (±${Math.round(fix.accuracyM)} m)`;
-        if (!useGps) {
-          useGps = true;
-          obsSel.value = 'gps';
-        }
         if (!insideBBox(fix, terrain.bbox)) {
           say(
             'You are outside this scene. There is no terrain here, so the render ' +
@@ -723,14 +749,14 @@ async function main(): Promise<void> {
         requestUpdate();
       },
       (err) => {
-        gpsBtn.setAttribute('aria-pressed', 'false');
-        stopGps?.();
-        stopGps = null;
+        setGpsOn(false);
         say(err instanceof GeolocationUnavailableError ? `${err.message} ${err.remedy}` : String(err));
         status.textContent = 'location unavailable';
       },
     );
-  };
+  }
+
+  gpsBtn.onclick = () => setGpsOn(!stopGps);
 
   // --- orientation ----------------------------------------------------------
   const gyroReset = el<HTMLButtonElement>('gyro-reset');

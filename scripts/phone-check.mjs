@@ -337,6 +337,53 @@ check(
 );
 
 // --- location -------------------------------------------------------------
+/**
+ * Reachable before any fix exists.
+ *
+ * This entry used to be disabled until a fix arrived, and a fix only arrived
+ * once you found an unlabelled glyph in the bar — so the control sitting where
+ * anyone would look for it was permanently greyed out, reading as "your phone
+ * cannot do this" when it meant "not yet asked".
+ */
+check(
+  'the location entry is selectable before any fix',
+  await page.evaluate(() => {
+    const o = [...document.getElementById('observer').options].find((x) => x.value === 'gps');
+    return Boolean(o) && !o.disabled;
+  }),
+);
+
+// Choosing it from the menu must start the watch on its own.
+await page.selectOption('#observer', 'gps');
+await page.waitForFunction(
+  () => document.getElementById('gps').getAttribute('aria-pressed') === 'true',
+  null,
+  { timeout: 10_000 },
+).catch(() => {});
+check(
+  'choosing it from the menu asks for a fix',
+  (await page.getAttribute('#gps', 'aria-pressed')) === 'true',
+);
+await page.waitForFunction(
+  () => /±\d+ m/.test(document.getElementById('readout').textContent),
+  null,
+  { timeout: 15_000 },
+).catch(() => {});
+check(
+  'the menu entry reports the accuracy once fixed',
+  /±\d+ m/.test(await page.evaluate(() => {
+    const o = [...document.getElementById('observer').options].find((x) => x.value === 'gps');
+    return o.text;
+  })),
+);
+
+// Back to a named observer, then in again through the bar button, so both
+// routes are known to drive the same switch.
+await page.selectOption('#observer', '0');
+await settle();
+check('picking a named observer releases the fix',
+  (await page.getAttribute('#gps', 'aria-pressed')) === 'false');
+
 await page.click('#gps');
 await page.waitForFunction(
   () => document.getElementById('observer').value === 'gps',
